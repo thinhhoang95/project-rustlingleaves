@@ -1,14 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Map as MapLibreMap } from "maplibre-gl";
+import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
 
 type MapViewProps = {
   showWaypoints: boolean;
   showLinks: boolean;
+  rulerActive: boolean;
+  rulerPoints: MapCoordinate[];
+  onAddRulerPoint: (point: MapCoordinate) => void;
   selectedSearchTarget: { id: string; requestId: number } | null;
   onSearchItemsChange: (items: MapSearchItem[]) => void;
 };
+
+export type MapCoordinate = [number, number];
 
 type LinkSectionCode = "PE" | "PF";
 
@@ -16,7 +21,7 @@ type AirportPointFeature = {
   type: "Feature";
   geometry: {
     type: "Point";
-    coordinates: [number, number];
+    coordinates: MapCoordinate;
   };
   properties: {
     identifier: string;
@@ -35,7 +40,7 @@ type RunwayFeature = {
   type: "Feature";
   geometry: {
     type: "LineString";
-    coordinates: [number, number][];
+    coordinates: MapCoordinate[];
   };
   properties: {
     identifier: string;
@@ -62,7 +67,7 @@ type LinkFeature = {
   type: "Feature";
   geometry: {
     type: "LineString";
-    coordinates: [number, number][];
+    coordinates: MapCoordinate[];
   };
   properties: {
     fromIdentifier: string;
@@ -75,6 +80,28 @@ type LinkCollection = {
   features: LinkFeature[];
 };
 
+type RulerFeatureCollection = {
+  type: "FeatureCollection";
+  features: Array<
+    | {
+        type: "Feature";
+        geometry: {
+          type: "LineString";
+          coordinates: MapCoordinate[];
+        };
+        properties: Record<string, never>;
+      }
+    | {
+        type: "Feature";
+        geometry: {
+          type: "Point";
+          coordinates: MapCoordinate;
+        };
+        properties: { index: number };
+      }
+  >;
+};
+
 type LinkSegment = {
   fromIdentifier: string;
   toIdentifier: string;
@@ -84,7 +111,7 @@ export type MapSearchItem = {
   id: string;
   name: string;
   type: "Waypoint" | "VOR" | "Runway";
-  coordinates: [number, number];
+  coordinates: MapCoordinate;
   zoom: number;
 };
 
@@ -102,6 +129,9 @@ const LINK_ARROW_IMAGE_ID = "arrival-link-arrowhead";
 const WAYPOINT_LABEL_LAYER_ID = "arrival-waypoints-label-layer";
 const VOR_LABEL_LAYER_ID = "arrival-vor-label-layer";
 const RUNWAY_LABEL_LAYER_ID = "arrival-runway-label-layer";
+const RULER_SOURCE_ID = "arrival-ruler-source";
+const RULER_LINE_LAYER_ID = "arrival-ruler-line-layer";
+const RULER_POINT_LAYER_ID = "arrival-ruler-point-layer";
 
 function parseCsvLine(line: string): string[] {
   const values: string[] = [];
@@ -317,7 +347,7 @@ function parseAirportFixesCsv(
 ): {
   waypoints: AirportPointCollection;
   vors: AirportPointCollection;
-  coordinatesByIdentifier: Map<string, [number, number]>;
+  coordinatesByIdentifier: Map<string, MapCoordinate>;
 } {
   const rows = csvText
     .split(/\r?\n/)
@@ -328,7 +358,7 @@ function parseAirportFixesCsv(
     return {
       waypoints: { type: "FeatureCollection", features: [] },
       vors: { type: "FeatureCollection", features: [] },
-      coordinatesByIdentifier: new Map<string, [number, number]>(),
+      coordinatesByIdentifier: new Map<string, MapCoordinate>(),
     };
   }
 
@@ -352,13 +382,13 @@ function parseAirportFixesCsv(
     return {
       waypoints: { type: "FeatureCollection", features: [] },
       vors: { type: "FeatureCollection", features: [] },
-      coordinatesByIdentifier: new Map<string, [number, number]>(),
+      coordinatesByIdentifier: new Map<string, MapCoordinate>(),
     };
   }
 
   const waypointFeatures: AirportPointFeature[] = [];
   const vorFeatures: AirportPointFeature[] = [];
-  const coordinatesByIdentifier = new Map<string, [number, number]>();
+  const coordinatesByIdentifier = new Map<string, MapCoordinate>();
 
   for (let rowIndex = 1; rowIndex < rows.length; rowIndex += 1) {
     const columns = parseCsvLine(rows[rowIndex]);
@@ -499,7 +529,7 @@ function parseRunwayInfoText(text: string): RunwayCollection {
 
 function buildLinkCollection(
   segments: LinkSegment[],
-  coordinatesByIdentifier: Map<string, [number, number]>,
+  coordinatesByIdentifier: Map<string, MapCoordinate>,
 ): LinkCollection {
   const features: LinkFeature[] = [];
 
@@ -591,9 +621,7 @@ function addWaypointLayers(map: MapLibreMap, waypoints: AirportPointCollection, 
       },
     });
   }
-}
 
-function addWaypointLabelLayer(map: MapLibreMap, visible: boolean) {
   if (!map.getLayer(WAYPOINT_LABEL_LAYER_ID)) {
     map.addLayer({
       id: WAYPOINT_LABEL_LAYER_ID,
@@ -667,9 +695,7 @@ function addVorLayers(map: MapLibreMap, vors: AirportPointCollection) {
       },
     });
   }
-}
 
-function addVorLabelLayer(map: MapLibreMap) {
   if (!map.getLayer(VOR_LABEL_LAYER_ID)) {
     map.addLayer({
       id: VOR_LABEL_LAYER_ID,
@@ -875,6 +901,97 @@ function setLinkVisibility(map: MapLibreMap, visible: boolean) {
   }
 }
 
+function buildRulerCollection(points: MapCoordinate[]): RulerFeatureCollection {
+  const pointFeatures = points.map((coordinates, index) => ({
+    type: "Feature" as const,
+    geometry: {
+      type: "Point" as const,
+      coordinates,
+    },
+    properties: { index },
+  }));
+
+  return {
+    type: "FeatureCollection",
+    features:
+      points.length > 1
+        ? [
+            {
+              type: "Feature" as const,
+              geometry: {
+                type: "LineString" as const,
+                coordinates: points,
+              },
+              properties: {},
+            },
+            ...pointFeatures,
+          ]
+        : pointFeatures,
+  };
+}
+
+function addRulerLayers(map: MapLibreMap, points: MapCoordinate[], visible: boolean) {
+  if (!map.getSource(RULER_SOURCE_ID)) {
+    map.addSource(RULER_SOURCE_ID, {
+      type: "geojson",
+      data: buildRulerCollection(points),
+    });
+  }
+
+  if (!map.getLayer(RULER_LINE_LAYER_ID)) {
+    map.addLayer({
+      id: RULER_LINE_LAYER_ID,
+      type: "line",
+      source: RULER_SOURCE_ID,
+      filter: ["==", ["geometry-type"], "LineString"],
+      layout: {
+        "line-cap": "round",
+        "line-join": "round",
+        visibility: visible ? "visible" : "none",
+      },
+      paint: {
+        "line-color": "#fde047",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.6, 9, 2.4, 14, 3.4],
+        "line-opacity": 0.92,
+        "line-dasharray": [1.2, 0.65],
+      },
+    });
+  }
+
+  if (!map.getLayer(RULER_POINT_LAYER_ID)) {
+    map.addLayer({
+      id: RULER_POINT_LAYER_ID,
+      type: "circle",
+      source: RULER_SOURCE_ID,
+      filter: ["==", ["geometry-type"], "Point"],
+      layout: {
+        visibility: visible ? "visible" : "none",
+      },
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 4, 10, 5.5, 15, 7],
+        "circle-color": "#fef08a",
+        "circle-stroke-color": "#111827",
+        "circle-stroke-width": 2,
+        "circle-opacity": 0.98,
+      },
+    });
+  }
+}
+
+function updateRulerLayers(map: MapLibreMap, points: MapCoordinate[], visible: boolean) {
+  addRulerLayers(map, points, visible);
+
+  const source = map.getSource(RULER_SOURCE_ID) as GeoJSONSource | undefined;
+  source?.setData(buildRulerCollection(points));
+
+  if (map.getLayer(RULER_LINE_LAYER_ID)) {
+    map.setLayoutProperty(RULER_LINE_LAYER_ID, "visibility", visible ? "visible" : "none");
+  }
+  if (map.getLayer(RULER_POINT_LAYER_ID)) {
+    map.setLayoutProperty(RULER_POINT_LAYER_ID, "visibility", visible ? "visible" : "none");
+  }
+}
+
 function fitDataBounds(
   map: MapLibreMap,
   maplibreglModule: typeof import("maplibre-gl"),
@@ -882,7 +999,7 @@ function fitDataBounds(
   vors: AirportPointCollection,
   runways: RunwayCollection,
 ) {
-  const coordinates: [number, number][] = [];
+  const coordinates: MapCoordinate[] = [];
 
   for (const feature of waypoints.features) {
     coordinates.push(feature.geometry.coordinates);
@@ -920,7 +1037,7 @@ function fitDataBounds(
   });
 }
 
-function getLineCenter(coordinates: [number, number][]): [number, number] {
+function getLineCenter(coordinates: MapCoordinate[]): MapCoordinate {
   if (coordinates.length === 0) {
     return [0, 0];
   }
@@ -988,6 +1105,9 @@ function buildSearchItems(
 export default function MapView({
   showWaypoints,
   showLinks,
+  rulerActive,
+  rulerPoints,
+  onAddRulerPoint,
   selectedSearchTarget,
   onSearchItemsChange,
 }: MapViewProps) {
@@ -995,6 +1115,8 @@ export default function MapView({
   const mapRef = useRef<MapLibreMap | null>(null);
   const showWaypointsRef = useRef(showWaypoints);
   const showLinksRef = useRef(showLinks);
+  const rulerActiveRef = useRef(rulerActive);
+  const onAddRulerPointRef = useRef(onAddRulerPoint);
   const searchItemsRef = useRef<MapSearchItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -1005,6 +1127,14 @@ export default function MapView({
   useEffect(() => {
     showLinksRef.current = showLinks;
   }, [showLinks]);
+
+  useEffect(() => {
+    rulerActiveRef.current = rulerActive;
+  }, [rulerActive]);
+
+  useEffect(() => {
+    onAddRulerPointRef.current = onAddRulerPoint;
+  }, [onAddRulerPoint]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1025,6 +1155,14 @@ export default function MapView({
 
       mapRef.current = map;
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+      map.on("click", (event: MapMouseEvent) => {
+        if (!rulerActiveRef.current) {
+          return;
+        }
+
+        event.preventDefault();
+        onAddRulerPointRef.current([event.lngLat.lng, event.lngLat.lat]);
+      });
 
       try {
         const [fixesResponse, runwayResponse, linkResponse] = await Promise.all([
@@ -1062,11 +1200,10 @@ export default function MapView({
 
         const addMapLayers = () => {
           addRunwayLayers(map, runways);
+          addLinkLayers(map, linkData.links, showLinksRef.current);
           addWaypointLayers(map, linkData.waypoints, showWaypointsRef.current);
           addVorLayers(map, linkData.vors);
-          addLinkLayers(map, linkData.links, showLinksRef.current);
-          addWaypointLabelLayer(map, showWaypointsRef.current);
-          addVorLabelLayer(map);
+          addRulerLayers(map, [], rulerActiveRef.current);
           fitDataBounds(map, maplibregl, linkData.waypoints, linkData.vors, runways);
         };
 
@@ -1092,6 +1229,16 @@ export default function MapView({
       mapRef.current = null;
     };
   }, [onSearchItemsChange]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    updateRulerLayers(map, rulerPoints, rulerActive);
+    map.getCanvas().style.cursor = rulerActive ? "crosshair" : "";
+  }, [rulerActive, rulerPoints]);
 
   useEffect(() => {
     const map = mapRef.current;
