@@ -32,16 +32,13 @@ export default function ChatPanel() {
         </div>
       </div>
 
-      <label className="chat-input-label" htmlFor="chat-input">
-        Qwen3.6
-      </label>
       <input
         id="chat-input"
         className="chat-input"
         type="text"
         value={message}
         onChange={(event) => setMessage(event.target.value)}
-        placeholder="Qwen3.6"
+        placeholder="Ask Agent..."
       />
     </aside>
   );
