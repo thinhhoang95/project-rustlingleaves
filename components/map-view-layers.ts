@@ -58,6 +58,20 @@ function setLayerVisibility(map: MapLibreMap, layerId: string, visible: boolean)
   }
 }
 
+function placeLinkLayersBelowReplayLayers(map: MapLibreMap) {
+  if (!map.getLayer(LINK_LINE_LAYER_ID) || !map.getLayer(FLIGHT_LINE_LAYER_ID)) {
+    return;
+  }
+
+  map.moveLayer(LINK_LINE_LAYER_ID, FLIGHT_LINE_LAYER_ID);
+
+  if (!map.getLayer(LINK_ARROW_LAYER_ID)) {
+    return;
+  }
+
+  map.moveLayer(LINK_ARROW_LAYER_ID, FLIGHT_LINE_LAYER_ID);
+}
+
 function addLinkArrowImage(map: MapLibreMap) {
   if (map.hasImage(LINK_ARROW_IMAGE_ID)) {
     return;
@@ -91,7 +105,7 @@ function addLinkArrowImage(map: MapLibreMap) {
   context.moveTo(5, 4);
   context.lineTo(22, 10);
   context.lineTo(5, 16);
-  context.strokeStyle = "#fda4af";
+  context.strokeStyle = "#8b123d";
   context.lineWidth = 3.2;
   context.stroke();
 
@@ -311,7 +325,7 @@ export function addLinkLayers(map: MapLibreMap, links: LinkCollection, visible: 
         visibility: visible ? "visible" : "none",
       },
       paint: {
-        "line-color": "#fda4af",
+        "line-color": "#8b123d",
         "line-width": ["interpolate", ["linear"], ["zoom"], 5, 0.7, 9, 1.1, 12, 1.6, 16, 2.3],
         "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.48, 9, 0.64, 14, 0.8],
       },
@@ -493,6 +507,7 @@ export function updateAdsbReplayLayers(
 ) {
   const visible = replayMode === "adsb";
   addAdsbReplayLayers(map, visible);
+  placeLinkLayersBelowReplayLayers(map);
 
   const aircraftSource = map.getSource(AIRCRAFT_SOURCE_ID) as GeoJSONSource | undefined;
   aircraftSource?.setData(visible ? buildAircraftCollection(replaySnapshot.aircraft) : emptyAircraftCollection());

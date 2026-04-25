@@ -96,6 +96,7 @@ export default function MapView({
         style: BASE_MAP_STYLE,
         center: [-97.04, 32.9],
         zoom: 6.8,
+        fadeDuration: 0,
       });
 
       mapRef.current = map;
