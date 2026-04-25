@@ -1,6 +1,6 @@
 "use client";
 
-import type { MapCoordinate } from "@/components/map-view";
+import type { MapCoordinate } from "@/components/map-view-types";
 
 const EARTH_RADIUS_KM = 6371.0088;
 const KM_PER_NAUTICAL_MILE = 1.852;

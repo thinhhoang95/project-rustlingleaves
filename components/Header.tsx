@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import type { ReplayMode } from "@/components/adsb-replay/types";
+import ReplayModeSwitch from "@/components/view-options/ReplayModeSwitch";
 
 export type HeaderSearchItem = {
   id: string;
@@ -75,24 +76,7 @@ export default function Header({
       </div>
 
       <nav aria-label="Primary navigation" className="app-nav">
-        <div className="mode-switch" role="group" aria-label="Replay mode">
-          <button
-            type="button"
-            className="mode-switch-button"
-            aria-pressed={replayMode === "simulation"}
-            onClick={() => onReplayModeChange("simulation")}
-          >
-            Simulation
-          </button>
-          <button
-            type="button"
-            className="mode-switch-button"
-            aria-pressed={replayMode === "adsb"}
-            onClick={() => onReplayModeChange("adsb")}
-          >
-            ADS-B
-          </button>
-        </div>
+        <ReplayModeSwitch replayMode={replayMode} onReplayModeChange={onReplayModeChange} />
 
         <div className="fix-search" role="search">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="fix-search-icon">

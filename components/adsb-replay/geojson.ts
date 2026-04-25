@@ -1,4 +1,4 @@
-import type { MapCoordinate } from "@/components/map-view";
+import type { MapCoordinate } from "@/components/map-view-types";
 import { metersToFlightLevel } from "./interpolate";
 import type {
   AircraftFeatureCollection,
