@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReplayMode } from "@/components/adsb-replay/types";
+
 type ViewOptionsControlProps = {
   showLinks: boolean;
   onToggleLinks: () => void;
@@ -7,7 +9,30 @@ type ViewOptionsControlProps = {
   onToggleWaypoints: () => void;
   rulerActive?: boolean;
   onToggleRuler?: () => void;
+  replayMode?: ReplayMode;
+  replayTime?: number;
+  replayMinTime?: number;
+  replayMaxTime?: number;
+  replayPlaying?: boolean;
+  replaySpeed?: number;
+  replayLoading?: boolean;
+  onReplayTimeChange?: (time: number) => void;
+  onToggleReplayPlaying?: () => void;
+  onReplaySpeedChange?: (speed: number) => void;
 };
+
+const REPLAY_SPEEDS = [1, 2, 5, 10];
+
+function formatTimeOfDay(epochSeconds: number): string {
+  const date = new Date(epochSeconds * 1000);
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(date);
+}
 
 export default function ViewOptionsControl({
   showLinks,
@@ -16,9 +41,74 @@ export default function ViewOptionsControl({
   onToggleWaypoints,
   rulerActive = false,
   onToggleRuler,
+  replayMode = "simulation",
+  replayTime = 0,
+  replayMinTime = 0,
+  replayMaxTime = 24 * 60 * 60 - 1,
+  replayPlaying = false,
+  replaySpeed = 1,
+  replayLoading = false,
+  onReplayTimeChange,
+  onToggleReplayPlaying,
+  onReplaySpeedChange,
 }: ViewOptionsControlProps) {
+  const showReplayControls = replayMode === "adsb" && onReplayTimeChange;
+  const replayReady = !replayLoading && replayMaxTime > replayMinTime;
+
   return (
     <section className="view-options" aria-label="View options">
+      {showReplayControls ? (
+        <div className="replay-controls" aria-label="ADS-B replay controls">
+          <button
+            type="button"
+            className="view-opt-btn replay-play-btn"
+            aria-pressed={replayPlaying}
+            aria-label={replayPlaying ? "Pause ADS-B replay" : "Play ADS-B replay"}
+            disabled={!replayReady}
+            onClick={onToggleReplayPlaying}
+          >
+            {replayPlaying ? (
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M6.5 4.5v11M13.5 4.5v11" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M7 4.75 15 10l-8 5.25V4.75Z" fill="currentColor" />
+              </svg>
+            )}
+          </button>
+
+          <div className="replay-scrubber">
+            <input
+              type="range"
+              min={Math.floor(replayMinTime)}
+              max={Math.floor(replayMaxTime)}
+              step={1}
+              value={Math.floor(Math.max(replayMinTime, Math.min(replayMaxTime, replayTime)))}
+              aria-label="ADS-B replay time of day"
+              disabled={!replayReady}
+              onChange={(event) => onReplayTimeChange(Number(event.currentTarget.value))}
+            />
+            <span className="replay-time">{replayReady ? formatTimeOfDay(replayTime) : "Loading"}</span>
+          </div>
+
+          <div className="replay-speed-group" role="group" aria-label="Replay speed">
+            {REPLAY_SPEEDS.map((speed) => (
+              <button
+                key={speed}
+                type="button"
+                className="replay-speed-btn"
+                aria-pressed={replaySpeed === speed}
+                disabled={!replayReady}
+                onClick={() => onReplaySpeedChange?.(speed)}
+              >
+                {speed}x
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <button
         type="button"
         className="view-opt-btn"

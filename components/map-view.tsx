@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
+import { buildAircraftCollection, buildVisibleFlightLineCollection } from "@/components/adsb-replay/geojson";
+import type { ReplayFlight, ReplayMode, ReplaySnapshot } from "@/components/adsb-replay/types";
 
 type MapViewProps = {
   showWaypoints: boolean;
@@ -11,6 +13,9 @@ type MapViewProps = {
   onAddRulerPoint: (point: MapCoordinate) => void;
   selectedSearchTarget: { id: string; requestId: number } | null;
   onSearchItemsChange: (items: MapSearchItem[]) => void;
+  replayMode: ReplayMode;
+  replayFlights: ReplayFlight[];
+  replaySnapshot: ReplaySnapshot;
 };
 
 export type MapCoordinate = [number, number];
@@ -132,6 +137,12 @@ const RUNWAY_LABEL_LAYER_ID = "arrival-runway-label-layer";
 const RULER_SOURCE_ID = "arrival-ruler-source";
 const RULER_LINE_LAYER_ID = "arrival-ruler-line-layer";
 const RULER_POINT_LAYER_ID = "arrival-ruler-point-layer";
+const AIRCRAFT_SOURCE_ID = "adsb-aircraft-source";
+const FLIGHT_LINE_SOURCE_ID = "adsb-flight-lines-source";
+const AIRCRAFT_LAYER_ID = "adsb-aircraft-layer";
+const AIRCRAFT_LABEL_LAYER_ID = "adsb-aircraft-label-layer";
+const FLIGHT_LINE_LAYER_ID = "adsb-flight-lines-layer";
+const AIRCRAFT_ICON_ID = "adsb-aircraft-icon";
 
 function parseCsvLine(line: string): string[] {
   const values: string[] = [];
@@ -992,6 +1003,158 @@ function updateRulerLayers(map: MapLibreMap, points: MapCoordinate[], visible: b
   }
 }
 
+function emptyAircraftCollection() {
+  return {
+    type: "FeatureCollection" as const,
+    features: [],
+  };
+}
+
+function emptyFlightLineCollection() {
+  return {
+    type: "FeatureCollection" as const,
+    features: [],
+  };
+}
+
+function addAircraftImage(map: MapLibreMap) {
+  if (map.hasImage(AIRCRAFT_ICON_ID)) {
+    return;
+  }
+
+  const scale = window.devicePixelRatio || 1;
+  const size = 34;
+  const canvas = document.createElement("canvas");
+  canvas.width = size * scale;
+  canvas.height = size * scale;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return;
+  }
+
+  context.scale(scale, scale);
+  context.translate(size / 2, size / 2);
+  context.beginPath();
+  context.moveTo(0, -13);
+  context.lineTo(6, 9);
+  context.lineTo(0, 5);
+  context.lineTo(-6, 9);
+  context.closePath();
+  context.fillStyle = "#f8fafc";
+  context.strokeStyle = "#07111f";
+  context.lineWidth = 2.5;
+  context.stroke();
+  context.fill();
+
+  map.addImage(AIRCRAFT_ICON_ID, context.getImageData(0, 0, canvas.width, canvas.height), {
+    pixelRatio: scale,
+  });
+}
+
+function addAdsbReplayLayers(map: MapLibreMap, visible: boolean) {
+  if (!map.getSource(FLIGHT_LINE_SOURCE_ID)) {
+    map.addSource(FLIGHT_LINE_SOURCE_ID, {
+      type: "geojson",
+      data: emptyFlightLineCollection(),
+    });
+  }
+
+  if (!map.getLayer(FLIGHT_LINE_LAYER_ID)) {
+    map.addLayer({
+      id: FLIGHT_LINE_LAYER_ID,
+      type: "line",
+      source: FLIGHT_LINE_SOURCE_ID,
+      layout: {
+        "line-cap": "round",
+        "line-join": "round",
+        visibility: visible ? "visible" : "none",
+      },
+      paint: {
+        "line-color": "#38bdf8",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1, 8, 1.8, 12, 2.6, 16, 3.4],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.34, 8, 0.56, 12, 0.74],
+      },
+    });
+  }
+
+  if (!map.getSource(AIRCRAFT_SOURCE_ID)) {
+    map.addSource(AIRCRAFT_SOURCE_ID, {
+      type: "geojson",
+      data: emptyAircraftCollection(),
+    });
+  }
+
+  addAircraftImage(map);
+
+  if (!map.getLayer(AIRCRAFT_LAYER_ID)) {
+    map.addLayer({
+      id: AIRCRAFT_LAYER_ID,
+      type: "symbol",
+      source: AIRCRAFT_SOURCE_ID,
+      layout: {
+        "icon-image": AIRCRAFT_ICON_ID,
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 4, 0.48, 8, 0.62, 12, 0.78],
+        "icon-rotate": ["get", "trackDegrees"],
+        "icon-rotation-alignment": "map",
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+        visibility: visible ? "visible" : "none",
+      },
+    });
+  }
+
+  if (!map.getLayer(AIRCRAFT_LABEL_LAYER_ID)) {
+    map.addLayer({
+      id: AIRCRAFT_LABEL_LAYER_ID,
+      type: "symbol",
+      source: AIRCRAFT_SOURCE_ID,
+      minzoom: 6,
+      layout: {
+        "text-field": ["format", ["get", "callsign"], {}, "\n", {}, ["get", "altitudeLabel"], {}],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 6, 9, 10, 10.5, 14, 12],
+        "text-offset": [0, 1.45],
+        "text-anchor": "top",
+        "text-font": ["Noto Sans Regular"],
+        "text-allow-overlap": false,
+        "text-ignore-placement": false,
+        visibility: visible ? "visible" : "none",
+      },
+      paint: {
+        "text-color": "#e0f2fe",
+        "text-halo-color": "#06101a",
+        "text-halo-width": 2,
+      },
+    });
+  }
+}
+
+function updateAdsbReplayLayers(
+  map: MapLibreMap,
+  replayMode: ReplayMode,
+  replayFlights: ReplayFlight[],
+  replaySnapshot: ReplaySnapshot,
+) {
+  const visible = replayMode === "adsb";
+  addAdsbReplayLayers(map, visible);
+
+  const aircraftSource = map.getSource(AIRCRAFT_SOURCE_ID) as GeoJSONSource | undefined;
+  aircraftSource?.setData(visible ? buildAircraftCollection(replaySnapshot.aircraft) : emptyAircraftCollection());
+
+  const flightLineSource = map.getSource(FLIGHT_LINE_SOURCE_ID) as GeoJSONSource | undefined;
+  flightLineSource?.setData(
+    visible
+      ? buildVisibleFlightLineCollection(replayFlights, replaySnapshot.aircraft, map.getBounds())
+      : emptyFlightLineCollection(),
+  );
+
+  for (const layerId of [FLIGHT_LINE_LAYER_ID, AIRCRAFT_LAYER_ID, AIRCRAFT_LABEL_LAYER_ID]) {
+    if (map.getLayer(layerId)) {
+      map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
+    }
+  }
+}
+
 function fitDataBounds(
   map: MapLibreMap,
   maplibreglModule: typeof import("maplibre-gl"),
@@ -1110,6 +1273,9 @@ export default function MapView({
   onAddRulerPoint,
   selectedSearchTarget,
   onSearchItemsChange,
+  replayMode,
+  replayFlights,
+  replaySnapshot,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -1117,6 +1283,9 @@ export default function MapView({
   const showLinksRef = useRef(showLinks);
   const rulerActiveRef = useRef(rulerActive);
   const onAddRulerPointRef = useRef(onAddRulerPoint);
+  const replayModeRef = useRef(replayMode);
+  const replayFlightsRef = useRef(replayFlights);
+  const replaySnapshotRef = useRef(replaySnapshot);
   const searchItemsRef = useRef<MapSearchItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -1135,6 +1304,12 @@ export default function MapView({
   useEffect(() => {
     onAddRulerPointRef.current = onAddRulerPoint;
   }, [onAddRulerPoint]);
+
+  useEffect(() => {
+    replayModeRef.current = replayMode;
+    replayFlightsRef.current = replayFlights;
+    replaySnapshotRef.current = replaySnapshot;
+  }, [replayFlights, replayMode, replaySnapshot]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1162,6 +1337,14 @@ export default function MapView({
 
         event.preventDefault();
         onAddRulerPointRef.current([event.lngLat.lng, event.lngLat.lat]);
+      });
+      map.on("moveend", () => {
+        updateAdsbReplayLayers(
+          map,
+          replayModeRef.current,
+          replayFlightsRef.current,
+          replaySnapshotRef.current,
+        );
       });
 
       try {
@@ -1204,6 +1387,13 @@ export default function MapView({
           addWaypointLayers(map, linkData.waypoints, showWaypointsRef.current);
           addVorLayers(map, linkData.vors);
           addRulerLayers(map, [], rulerActiveRef.current);
+          addAdsbReplayLayers(map, replayModeRef.current === "adsb");
+          updateAdsbReplayLayers(
+            map,
+            replayModeRef.current,
+            replayFlightsRef.current,
+            replaySnapshotRef.current,
+          );
           fitDataBounds(map, maplibregl, linkData.waypoints, linkData.vors, runways);
         };
 
@@ -1257,6 +1447,15 @@ export default function MapView({
 
     setLinkVisibility(map, showLinks);
   }, [showLinks]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    updateAdsbReplayLayers(map, replayMode, replayFlights, replaySnapshot);
+  }, [replayFlights, replayMode, replaySnapshot]);
 
   useEffect(() => {
     if (!selectedSearchTarget) {

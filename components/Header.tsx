@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from "react";
+import type { ReplayMode } from "@/components/adsb-replay/types";
 
 export type HeaderSearchItem = {
   id: string;
@@ -13,6 +14,8 @@ type HeaderProps = {
   onToggleChat: () => void;
   searchItems: HeaderSearchItem[];
   onSelectSearchItem: (itemId: string) => void;
+  replayMode: ReplayMode;
+  onReplayModeChange: (mode: ReplayMode) => void;
 };
 
 export default function Header({
@@ -20,6 +23,8 @@ export default function Header({
   onToggleChat,
   searchItems,
   onSelectSearchItem,
+  replayMode,
+  onReplayModeChange,
 }: HeaderProps) {
   const [query, setQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -70,6 +75,25 @@ export default function Header({
       </div>
 
       <nav aria-label="Primary navigation" className="app-nav">
+        <div className="mode-switch" role="group" aria-label="Replay mode">
+          <button
+            type="button"
+            className="mode-switch-button"
+            aria-pressed={replayMode === "simulation"}
+            onClick={() => onReplayModeChange("simulation")}
+          >
+            Simulation
+          </button>
+          <button
+            type="button"
+            className="mode-switch-button"
+            aria-pressed={replayMode === "adsb"}
+            onClick={() => onReplayModeChange("adsb")}
+          >
+            ADS-B
+          </button>
+        </div>
+
         <div className="fix-search" role="search">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="fix-search-icon">
             <path d="M10.5 4a6.5 6.5 0 014.98 10.68l4.42 4.42-1.4 1.4-4.42-4.42A6.5 6.5 0 1110.5 4zm0 2a4.5 4.5 0 100 9 4.5 4.5 0 000-9z" />
