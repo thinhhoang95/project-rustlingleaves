@@ -6,7 +6,7 @@ type ReplaySpeedSelectorProps = {
   onReplaySpeedChange?: (speed: number) => void;
 };
 
-const REPLAY_SPEEDS = [1, 2, 5, 10];
+const REPLAY_SPEEDS = [5, 10, 20];
 
 export default function ReplaySpeedSelector({
   replaySpeed,
