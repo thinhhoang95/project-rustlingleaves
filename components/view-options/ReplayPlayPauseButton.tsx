@@ -1,22 +1,28 @@
 "use client";
 
+import type { ReplayMode } from "@/components/adsb-replay/types";
+
 type ReplayPlayPauseButtonProps = {
+  replayMode: ReplayMode;
   replayPlaying: boolean;
   disabled: boolean;
   onToggle?: () => void;
 };
 
 export default function ReplayPlayPauseButton({
+  replayMode,
   replayPlaying,
   disabled,
   onToggle,
 }: ReplayPlayPauseButtonProps) {
+  const replayLabel = replayMode === "simulation" ? "simulation" : "ADS-B";
+
   return (
     <button
       type="button"
       className="view-opt-btn replay-play-btn"
       aria-pressed={replayPlaying}
-      aria-label={replayPlaying ? "Pause ADS-B replay" : "Play ADS-B replay"}
+      aria-label={replayPlaying ? `Pause ${replayLabel} replay` : `Play ${replayLabel} replay`}
       disabled={disabled}
       onClick={onToggle}
     >

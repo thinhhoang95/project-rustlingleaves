@@ -2,6 +2,7 @@ import type { Map as MapLibreMap } from "maplibre-gl";
 import type { MapCoordinate, MapSearchItem } from "./map-view-types";
 
 type LinkSectionCode = "PE" | "PF";
+type AirportSearchItem = Extract<MapSearchItem, { type: "Waypoint" | "VOR" | "Runway" }>;
 
 export type AirportPointFeature = {
   type: "Feature";
@@ -575,8 +576,8 @@ export function buildSearchItems(
   waypoints: AirportPointCollection,
   vors: AirportPointCollection,
   runways: RunwayCollection,
-): MapSearchItem[] {
-  const items: MapSearchItem[] = [];
+): AirportSearchItem[] {
+  const items: AirportSearchItem[] = [];
 
   for (const feature of waypoints.features) {
     const identifier = feature.properties.identifier.trim();

@@ -4,9 +4,13 @@ type RawFlight = {
   flight_id?: unknown;
   callsign?: unknown;
   icao24?: unknown;
+  columns?: unknown;
   points?: unknown;
   first_time?: unknown;
   last_time?: unknown;
+  departure_time?: unknown;
+  time_at_first_fix?: unknown;
+  time_at_last_event?: unknown;
 };
 
 const SECONDS_PER_DAY = 24 * 60 * 60;
@@ -16,16 +20,54 @@ function asFiniteNumber(value: unknown): number | null {
   return Number.isFinite(numericValue) ? numericValue : null;
 }
 
-function normalizeFlightPoint(rawPoint: unknown): FlightPoint | null {
+type ColumnIndexes = {
+  time: number;
+  latitude: number;
+  longitude: number;
+  geoAltitudeMeters: number;
+  breakpointMask: number;
+};
+
+const DEFAULT_COLUMN_INDEXES: ColumnIndexes = {
+  time: 0,
+  latitude: 1,
+  longitude: 2,
+  geoAltitudeMeters: 3,
+  breakpointMask: 4,
+};
+
+function buildColumnIndexes(columns: unknown): ColumnIndexes {
+  if (!Array.isArray(columns)) {
+    return DEFAULT_COLUMN_INDEXES;
+  }
+
+  const normalizedColumns = columns.map((column) => String(column).trim().toLowerCase());
+  const findIndex = (...names: string[]) => {
+    const index = normalizedColumns.findIndex((column) => names.includes(column));
+    return index >= 0 ? index : null;
+  };
+
+  return {
+    time: findIndex("time", "timestamp") ?? DEFAULT_COLUMN_INDEXES.time,
+    latitude: findIndex("lat", "latitude") ?? DEFAULT_COLUMN_INDEXES.latitude,
+    longitude: findIndex("lon", "lng", "longitude") ?? DEFAULT_COLUMN_INDEXES.longitude,
+    geoAltitudeMeters:
+      findIndex("geoaltitude_m", "geoaltitude", "altitude_m", "altitude") ??
+      DEFAULT_COLUMN_INDEXES.geoAltitudeMeters,
+    breakpointMask: findIndex("breakpoint_mask") ?? DEFAULT_COLUMN_INDEXES.breakpointMask,
+  };
+}
+
+function normalizeFlightPoint(rawPoint: unknown, columnIndexes: ColumnIndexes): FlightPoint | null {
   if (!Array.isArray(rawPoint) || rawPoint.length < 4) {
     return null;
   }
 
-  const time = asFiniteNumber(rawPoint[0]);
-  const latitude = asFiniteNumber(rawPoint[1]);
-  const longitude = asFiniteNumber(rawPoint[2]);
-  const geoAltitudeMeters = asFiniteNumber(rawPoint[3]);
-  const breakpointMask = asFiniteNumber(rawPoint[4]) ?? 0;
+  const time = asFiniteNumber(rawPoint[columnIndexes.time]);
+  const latitude = asFiniteNumber(rawPoint[columnIndexes.latitude]);
+  const longitude = asFiniteNumber(rawPoint[columnIndexes.longitude]);
+  const geoAltitudeMeters = asFiniteNumber(rawPoint[columnIndexes.geoAltitudeMeters]);
+  const breakpointMask = asFiniteNumber(rawPoint[columnIndexes.breakpointMask]) ?? 0;
 
   if (time === null || latitude === null || longitude === null || geoAltitudeMeters === null) {
     return null;
@@ -45,8 +87,9 @@ function normalizeFlight(rawFlight: RawFlight): ReplayFlight | null {
     return null;
   }
 
+  const columnIndexes = buildColumnIndexes(rawFlight.columns);
   const points = rawFlight.points
-    .map(normalizeFlightPoint)
+    .map((point) => normalizeFlightPoint(point, columnIndexes))
     .filter((point): point is FlightPoint => point !== null)
     .sort((left, right) => left.time - right.time);
 
@@ -54,8 +97,15 @@ function normalizeFlight(rawFlight: RawFlight): ReplayFlight | null {
     return null;
   }
 
-  const firstTime = asFiniteNumber(rawFlight.first_time) ?? points[0].time;
-  const lastTime = asFiniteNumber(rawFlight.last_time) ?? points[points.length - 1].time;
+  const firstTime =
+    asFiniteNumber(rawFlight.first_time) ??
+    asFiniteNumber(rawFlight.departure_time) ??
+    asFiniteNumber(rawFlight.time_at_first_fix) ??
+    points[0].time;
+  const lastTime =
+    asFiniteNumber(rawFlight.last_time) ??
+    asFiniteNumber(rawFlight.time_at_last_event) ??
+    points[points.length - 1].time;
 
   return {
     id: String(rawFlight.flight_id || rawFlight.icao24 || rawFlight.callsign || crypto.randomUUID()),
@@ -87,6 +137,17 @@ export function parseFlightsJsonl(jsonlText: string): ReplayFlight[] {
   }
 
   return flights.sort((left, right) => left.firstTime - right.firstTime || left.callsign.localeCompare(right.callsign));
+}
+
+export function parseFlightsJsonArray(jsonPayload: unknown): ReplayFlight[] {
+  if (!Array.isArray(jsonPayload)) {
+    return [];
+  }
+
+  return jsonPayload
+    .map((rawFlight) => normalizeFlight(rawFlight as RawFlight))
+    .filter((flight): flight is ReplayFlight => flight !== null)
+    .sort((left, right) => left.firstTime - right.firstTime || left.callsign.localeCompare(right.callsign));
 }
 
 export function getTimeOfDaySeconds(epochSeconds: number): number {

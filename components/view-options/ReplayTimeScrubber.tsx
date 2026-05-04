@@ -1,6 +1,10 @@
 "use client";
 
+import type { ReplayMode } from "@/components/adsb-replay/types";
+import ShimmeringText from "@/components/ShimmeringText";
+
 type ReplayTimeScrubberProps = {
+  replayMode: ReplayMode;
   replayTime: number;
   replayMinTime: number;
   replayMaxTime: number;
@@ -20,6 +24,7 @@ function formatTimeOfDay(epochSeconds: number): string {
 }
 
 export default function ReplayTimeScrubber({
+  replayMode,
   replayTime,
   replayMinTime,
   replayMaxTime,
@@ -28,6 +33,7 @@ export default function ReplayTimeScrubber({
 }: ReplayTimeScrubberProps) {
   const replayReady = !replayLoading && replayMaxTime > replayMinTime;
   const clampedReplayTime = Math.floor(Math.max(replayMinTime, Math.min(replayMaxTime, replayTime)));
+  const replayLabel = replayMode === "simulation" ? "simulation" : "ADS-B";
 
   return (
     <div className="replay-scrubber">
@@ -37,11 +43,15 @@ export default function ReplayTimeScrubber({
         max={Math.floor(replayMaxTime)}
         step={1}
         value={clampedReplayTime}
-        aria-label="ADS-B replay time of day"
+        aria-label={`${replayLabel} replay time of day`}
         disabled={!replayReady}
         onChange={(event) => onReplayTimeChange?.(Number(event.currentTarget.value))}
       />
-      <span className="replay-time">{replayReady ? formatTimeOfDay(replayTime) : "Loading"}</span>
+      <div className="replay-time">
+        {replayReady ? formatTimeOfDay(replayTime) : null}
+        {!replayReady && replayLoading ? <ShimmeringText text="Loading" className="replay-loading-text" /> : null}
+        {!replayReady && !replayLoading ? "No data" : null}
+      </div>
     </div>
   );
 }

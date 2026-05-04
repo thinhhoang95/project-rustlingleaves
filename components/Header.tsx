@@ -7,7 +7,8 @@ import ReplayModeSwitch from "@/components/view-options/ReplayModeSwitch";
 export type HeaderSearchItem = {
   id: string;
   name: string;
-  type: "Waypoint" | "VOR" | "Runway";
+  type: "Waypoint" | "VOR" | "Runway" | "Flight";
+  callsign?: string;
 };
 
 type HeaderProps = {
@@ -17,6 +18,8 @@ type HeaderProps = {
   onSelectSearchItem: (itemId: string) => void;
   replayMode: ReplayMode;
   onReplayModeChange: (mode: ReplayMode) => void;
+  simulationCacheLoading: boolean;
+  onInvalidateSimulationCache: () => void;
 };
 
 export default function Header({
@@ -26,6 +29,8 @@ export default function Header({
   onSelectSearchItem,
   replayMode,
   onReplayModeChange,
+  simulationCacheLoading,
+  onInvalidateSimulationCache,
 }: HeaderProps) {
   const [query, setQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -37,14 +42,20 @@ export default function Header({
     }
 
     return searchItems
-      .filter((item) => item.name.toUpperCase().includes(normalizedQuery))
+      .filter((item) => {
+        const normalizedName = item.name.toUpperCase();
+        const normalizedCallsign = item.callsign?.toUpperCase() ?? "";
+        return normalizedName.includes(normalizedQuery) || normalizedCallsign.includes(normalizedQuery);
+      })
       .sort((left, right) => {
         const leftName = left.name.toUpperCase();
         const rightName = right.name.toUpperCase();
-        const leftExact = leftName === normalizedQuery ? 0 : 1;
-        const rightExact = rightName === normalizedQuery ? 0 : 1;
-        const leftStarts = leftName.startsWith(normalizedQuery) ? 0 : 1;
-        const rightStarts = rightName.startsWith(normalizedQuery) ? 0 : 1;
+        const leftCallsign = left.callsign?.toUpperCase() ?? "";
+        const rightCallsign = right.callsign?.toUpperCase() ?? "";
+        const leftExact = leftName === normalizedQuery || leftCallsign === normalizedQuery ? 0 : 1;
+        const rightExact = rightName === normalizedQuery || rightCallsign === normalizedQuery ? 0 : 1;
+        const leftStarts = leftName.startsWith(normalizedQuery) || leftCallsign.startsWith(normalizedQuery) ? 0 : 1;
+        const rightStarts = rightName.startsWith(normalizedQuery) || rightCallsign.startsWith(normalizedQuery) ? 0 : 1;
         return leftExact - rightExact || leftStarts - rightStarts || leftName.localeCompare(rightName);
       })
       .slice(0, 8);
@@ -76,7 +87,12 @@ export default function Header({
       </div>
 
       <nav aria-label="Primary navigation" className="app-nav">
-        <ReplayModeSwitch replayMode={replayMode} onReplayModeChange={onReplayModeChange} />
+        <ReplayModeSwitch
+          replayMode={replayMode}
+          simulationCacheLoading={simulationCacheLoading}
+          onReplayModeChange={onReplayModeChange}
+          onInvalidateSimulationCache={onInvalidateSimulationCache}
+        />
 
         <div className="fix-search" role="search">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="fix-search-icon">
@@ -85,8 +101,8 @@ export default function Header({
           <input
             type="search"
             value={query}
-            aria-label="Search waypoint, VOR, or runway"
-            placeholder="Search fixes"
+            aria-label="Search waypoint, VOR, runway, or flight callsign"
+            placeholder="Search fixes or callsigns"
             className="fix-search-input"
             onBlur={handleSearchBlur}
             onChange={(event) => setQuery(event.target.value)}
@@ -109,7 +125,7 @@ export default function Header({
                   </button>
                 ))
               ) : (
-                <div className="fix-search-empty">No matching fixes</div>
+                <div className="fix-search-empty">No matching fixes or flights</div>
               )}
             </div>
           ) : null}

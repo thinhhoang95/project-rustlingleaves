@@ -30,21 +30,24 @@ export default function ReplayControls({
   onToggleReplayPlaying,
   onReplaySpeedChange,
 }: ReplayControlsProps) {
-  const showReplayControls = replayMode === "adsb" && onReplayTimeChange;
+  const showReplayControls = onReplayTimeChange;
   const replayReady = !replayLoading && replayMaxTime > replayMinTime;
+  const replayLabel = replayMode === "simulation" ? "Simulation" : "ADS-B";
 
   if (!showReplayControls) {
     return null;
   }
 
   return (
-    <div className="replay-controls" aria-label="ADS-B replay controls">
+    <div className="replay-controls" aria-label={`${replayLabel} replay controls`}>
       <ReplayPlayPauseButton
+        replayMode={replayMode}
         replayPlaying={replayPlaying}
         disabled={!replayReady}
         onToggle={onToggleReplayPlaying}
       />
       <ReplayTimeScrubber
+        replayMode={replayMode}
         replayTime={replayTime}
         replayMinTime={replayMinTime}
         replayMaxTime={replayMaxTime}

@@ -505,7 +505,7 @@ export function updateAdsbReplayLayers(
   replayFlights: ReplayFlight[],
   replaySnapshot: ReplaySnapshot,
 ) {
-  const visible = replayMode === "adsb";
+  const visible = replayMode === "adsb" || replayMode === "simulation";
   addAdsbReplayLayers(map, visible);
   placeLinkLayersBelowReplayLayers(map);
 

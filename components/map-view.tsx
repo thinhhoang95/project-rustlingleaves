@@ -16,9 +16,12 @@ import {
   updateRulerLayers,
 } from "./map-view-layers";
 import type { MapCoordinate, MapSearchItem } from "./map-view-types";
+import { interpolateFlightAtTime } from "@/components/adsb-replay/interpolate";
 import type { ReplayFlight, ReplayMode, ReplaySnapshot } from "@/components/adsb-replay/types";
 
 export type { MapCoordinate, MapSearchItem } from "./map-view-types";
+
+type FixSearchItem = Extract<MapSearchItem, { type: "Waypoint" | "VOR" | "Runway" }>;
 
 type MapViewProps = {
   showWaypoints: boolean;
@@ -26,7 +29,7 @@ type MapViewProps = {
   rulerActive: boolean;
   rulerPoints: MapCoordinate[];
   onAddRulerPoint: (point: MapCoordinate) => void;
-  selectedSearchTarget: { id: string; requestId: number } | null;
+  selectedSearchTarget: { id: string; requestId: number; time?: number } | null;
   onSearchItemsChange: (items: MapSearchItem[]) => void;
   replayMode: ReplayMode;
   replayFlights: ReplayFlight[];
@@ -56,7 +59,7 @@ export default function MapView({
   const replayModeRef = useRef(replayMode);
   const replayFlightsRef = useRef(replayFlights);
   const replaySnapshotRef = useRef(replaySnapshot);
-  const searchItemsRef = useRef<MapSearchItem[]>([]);
+  const searchItemsRef = useRef<FixSearchItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -234,14 +237,32 @@ export default function MapView({
     }
 
     const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
     const item = searchItemsRef.current.find((searchItem) => searchItem.id === selectedSearchTarget.id);
-    if (!map || !item) {
+    if (item) {
+      map.flyTo({
+        center: item.coordinates,
+        zoom: Math.max(map.getZoom(), item.zoom),
+        speed: 0.9,
+        curve: 1.25,
+        essential: true,
+      });
+      return;
+    }
+
+    const flight = replayFlightsRef.current.find((replayFlight) => `flight:${replayFlight.id}` === selectedSearchTarget.id);
+    const targetTime = selectedSearchTarget.time ?? flight?.firstTime;
+    const aircraft = flight && targetTime !== undefined ? interpolateFlightAtTime(flight, targetTime) : null;
+    if (!aircraft) {
       return;
     }
 
     map.flyTo({
-      center: item.coordinates,
-      zoom: Math.max(map.getZoom(), item.zoom),
+      center: aircraft.coordinate,
+      zoom: Math.max(map.getZoom(), 9),
       speed: 0.9,
       curve: 1.25,
       essential: true,

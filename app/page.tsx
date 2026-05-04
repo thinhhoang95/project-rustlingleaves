@@ -8,11 +8,13 @@ import MapView from "@/components/map-view";
 import type { MapCoordinate, MapSearchItem } from "@/components/map-view-types";
 import ViewOptionsControl from "@/components/ViewOptionsControl";
 import { useAdsbReplay } from "@/components/adsb-replay/useAdsbReplay";
+import { useSimulationReplay } from "@/components/adsb-replay/useSimulationReplay";
 import type { ReplayMode } from "@/components/adsb-replay/types";
 
 export default function Page() {
   const [replayMode, setReplayMode] = useState<ReplayMode>("adsb");
-  const [replayTime, setReplayTime] = useState(0);
+  const [adsbReplayTime, setAdsbReplayTime] = useState(0);
+  const [simulationReplayTime, setSimulationReplayTime] = useState(0);
   const [replayPlaying, setReplayPlaying] = useState(false);
   const [replaySpeed, setReplaySpeed] = useState(1);
   const [showLinks, setShowLinks] = useState(true);
@@ -21,19 +23,38 @@ export default function Page() {
   const [rulerActive, setRulerActive] = useState(false);
   const [rulerPoints, setRulerPoints] = useState<MapCoordinate[]>([]);
   const [searchItems, setSearchItems] = useState<MapSearchItem[]>([]);
-  const [selectedSearchTarget, setSelectedSearchTarget] = useState<{ id: string; requestId: number } | null>(null);
-  const adsbReplay = useAdsbReplay(replayTime);
+  const [selectedSearchTarget, setSelectedSearchTarget] = useState<{ id: string; requestId: number; time?: number } | null>(null);
+  const adsbReplay = useAdsbReplay(adsbReplayTime);
+  const simulationReplay = useSimulationReplay(simulationReplayTime);
+  const activeReplay = replayMode === "simulation" ? simulationReplay : adsbReplay;
+  const setActiveReplayTime = replayMode === "simulation" ? setSimulationReplayTime : setAdsbReplayTime;
 
   const measureSegments = useMemo(() => buildMeasureSegments(rulerPoints), [rulerPoints]);
-  const effectiveReplayTime = replayTime || adsbReplay.metadata?.minTime || 0;
+  const effectiveReplayTime =
+    (replayMode === "simulation" ? simulationReplayTime : adsbReplayTime) ||
+    activeReplay.metadata?.minTime ||
+    0;
+  const headerSearchItems = useMemo<MapSearchItem[]>(() => {
+    const flightItems = activeReplay.flights.map((flight) => ({
+      id: `flight:${flight.id}`,
+      name: flight.callsign || flight.id,
+      callsign: flight.callsign,
+      type: "Flight" as const,
+      flightId: flight.id,
+      firstTime: flight.firstTime,
+      lastTime: flight.lastTime,
+    }));
+
+    return [...searchItems, ...flightItems];
+  }, [activeReplay.flights, searchItems]);
 
   useEffect(() => {
     window.__ADS_B_REPLAY_TIME_OF_DAY__ = ((Math.floor(effectiveReplayTime) % 86400) + 86400) % 86400;
   }, [effectiveReplayTime]);
 
   useEffect(() => {
-    const replayMetadata = adsbReplay.metadata;
-    if (!replayPlaying || replayMode !== "adsb" || !replayMetadata) {
+    const replayMetadata = activeReplay.metadata;
+    if (!replayPlaying || !replayMetadata) {
       return;
     }
 
@@ -48,7 +69,7 @@ export default function Page() {
       const elapsedSeconds = ((timestamp - previousTimestamp) / 1000) * replaySpeed;
       previousTimestamp = timestamp;
 
-      setReplayTime((currentTime) => {
+      setActiveReplayTime((currentTime) => {
         const baseTime = currentTime || replayMetadata.minTime;
         const nextTime = baseTime + elapsedSeconds;
         if (nextTime > replayMetadata.maxTime) {
@@ -62,7 +83,7 @@ export default function Page() {
 
     animationFrame = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [adsbReplay.metadata, replayMode, replayPlaying, replaySpeed]);
+  }, [activeReplay.metadata, replayPlaying, replaySpeed, setActiveReplayTime]);
 
   const closeRuler = useCallback(() => {
     setRulerActive(false);
@@ -89,18 +110,41 @@ export default function Page() {
       <Header
         isChatOpen={showChat}
         onToggleChat={() => setShowChat((prev) => !prev)}
-        searchItems={searchItems}
+        searchItems={headerSearchItems}
         replayMode={replayMode}
         onReplayModeChange={(mode) => {
           setReplayMode(mode);
           setReplayPlaying(false);
         }}
-        onSelectSearchItem={(itemId) =>
+        simulationCacheLoading={simulationReplay.loading || simulationReplay.invalidating}
+        onInvalidateSimulationCache={() => {
+          setReplayMode("simulation");
+          setReplayPlaying(false);
+          setSimulationReplayTime(0);
+          void simulationReplay.invalidateCache();
+        }}
+        onSelectSearchItem={(itemId) => {
+          const item = headerSearchItems.find((searchItem) => searchItem.id === itemId);
+          const targetTime =
+            item?.type === "Flight" && (effectiveReplayTime < item.firstTime || effectiveReplayTime > item.lastTime)
+              ? item.firstTime
+              : item?.type === "Flight"
+                ? effectiveReplayTime
+                : undefined;
+
+          if (item?.type === "Flight") {
+            setReplayPlaying(false);
+            if (targetTime !== undefined && targetTime !== effectiveReplayTime) {
+              setActiveReplayTime(targetTime);
+            }
+          }
+
           setSelectedSearchTarget((previousTarget) => ({
             id: itemId,
             requestId: (previousTarget?.requestId ?? 0) + 1,
-          }))
-        }
+            time: targetTime,
+          }));
+        }}
       />
       {showChat ? (
         <div className="chat-panel-anchor">
@@ -116,8 +160,8 @@ export default function Page() {
         selectedSearchTarget={selectedSearchTarget}
         onSearchItemsChange={setSearchItems}
         replayMode={replayMode}
-        replayFlights={adsbReplay.flights}
-        replaySnapshot={adsbReplay.snapshot}
+        replayFlights={activeReplay.flights}
+        replaySnapshot={activeReplay.snapshot}
       />
 
       <div className="view-options-anchor">
@@ -138,14 +182,14 @@ export default function Page() {
           }}
           replayMode={replayMode}
           replayTime={effectiveReplayTime}
-          replayMinTime={adsbReplay.metadata?.minTime}
-          replayMaxTime={adsbReplay.metadata?.maxTime}
+          replayMinTime={activeReplay.metadata?.minTime ?? 0}
+          replayMaxTime={activeReplay.metadata?.maxTime ?? 0}
           replayPlaying={replayPlaying}
           replaySpeed={replaySpeed}
-          replayLoading={adsbReplay.loading}
+          replayLoading={activeReplay.loading}
           onReplayTimeChange={(time) => {
             setReplayPlaying(false);
-            setReplayTime(time);
+            setActiveReplayTime(time);
           }}
           onToggleReplayPlaying={() => setReplayPlaying((previous) => !previous)}
           onReplaySpeedChange={setReplaySpeed}
