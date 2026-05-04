@@ -9,8 +9,14 @@ type RawFlight = {
   first_time?: unknown;
   last_time?: unknown;
   departure_time?: unknown;
+  departure_time_utc?: unknown;
   time_at_first_fix?: unknown;
+  time_at_first_fix_utc?: unknown;
   time_at_last_event?: unknown;
+  time_at_last_event_utc?: unknown;
+  runway?: unknown;
+  original_fix_sequence?: unknown;
+  original_fix_count?: unknown;
 };
 
 const SECONDS_PER_DAY = 24 * 60 * 60;
@@ -18,6 +24,27 @@ const SECONDS_PER_DAY = 24 * 60 * 60;
 function asFiniteNumber(value: unknown): number | null {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function asTrimmedString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmedValue = value.trim();
+  return trimmedValue || undefined;
+}
+
+function normalizeFixSequence(value: unknown): string[] | undefined {
+  const fixSequence = asTrimmedString(value);
+  if (!fixSequence) {
+    return undefined;
+  }
+
+  return fixSequence
+    .split(">")
+    .map((fixName) => fixName.trim())
+    .filter(Boolean);
 }
 
 type ColumnIndexes = {
@@ -106,6 +133,10 @@ function normalizeFlight(rawFlight: RawFlight): ReplayFlight | null {
     asFiniteNumber(rawFlight.last_time) ??
     asFiniteNumber(rawFlight.time_at_last_event) ??
     points[points.length - 1].time;
+  const departureTime = asFiniteNumber(rawFlight.departure_time) ?? undefined;
+  const arrivalTime = asFiniteNumber(rawFlight.time_at_first_fix) ?? undefined;
+  const lastEventTime = asFiniteNumber(rawFlight.time_at_last_event) ?? undefined;
+  const originalFixCount = asFiniteNumber(rawFlight.original_fix_count) ?? undefined;
 
   return {
     id: String(rawFlight.flight_id || rawFlight.icao24 || rawFlight.callsign || crypto.randomUUID()),
@@ -114,6 +145,16 @@ function normalizeFlight(rawFlight: RawFlight): ReplayFlight | null {
     points,
     firstTime,
     lastTime,
+    operation: departureTime !== undefined ? "departure" : arrivalTime !== undefined ? "arrival" : undefined,
+    runway: asTrimmedString(rawFlight.runway),
+    departureTime,
+    departureTimeUtc: asTrimmedString(rawFlight.departure_time_utc),
+    arrivalTime,
+    arrivalTimeUtc: asTrimmedString(rawFlight.time_at_first_fix_utc),
+    lastEventTime,
+    lastEventTimeUtc: asTrimmedString(rawFlight.time_at_last_event_utc),
+    originalFixSequence: normalizeFixSequence(rawFlight.original_fix_sequence),
+    originalFixCount,
   };
 }
 

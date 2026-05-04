@@ -504,6 +504,7 @@ export function updateAdsbReplayLayers(
   replayMode: ReplayMode,
   replayFlights: ReplayFlight[],
   replaySnapshot: ReplaySnapshot,
+  selectedReplayFlightId: string | null = null,
 ) {
   const visible = replayMode === "adsb" || replayMode === "simulation";
   addAdsbReplayLayers(map, visible);
@@ -515,7 +516,7 @@ export function updateAdsbReplayLayers(
   const flightLineSource = map.getSource(FLIGHT_LINE_SOURCE_ID) as GeoJSONSource | undefined;
   flightLineSource?.setData(
     visible
-      ? buildVisibleFlightLineCollection(replayFlights, replaySnapshot.aircraft, map.getBounds())
+      ? buildVisibleFlightLineCollection(replayFlights, replaySnapshot.aircraft, map.getBounds(), selectedReplayFlightId)
       : emptyFlightLineCollection(),
   );
 

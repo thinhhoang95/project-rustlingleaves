@@ -30,10 +30,12 @@ type MapViewProps = {
   rulerPoints: MapCoordinate[];
   onAddRulerPoint: (point: MapCoordinate) => void;
   selectedSearchTarget: { id: string; requestId: number; time?: number } | null;
+  onSelectReplayFlight?: (flightId: string) => void;
   onSearchItemsChange: (items: MapSearchItem[]) => void;
   replayMode: ReplayMode;
   replayFlights: ReplayFlight[];
   replaySnapshot: ReplaySnapshot;
+  selectedReplayFlightId?: string | null;
 };
 
 const BASE_MAP_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
@@ -45,10 +47,12 @@ export default function MapView({
   rulerPoints,
   onAddRulerPoint,
   selectedSearchTarget,
+  onSelectReplayFlight,
   onSearchItemsChange,
   replayMode,
   replayFlights,
   replaySnapshot,
+  selectedReplayFlightId = null,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -56,9 +60,11 @@ export default function MapView({
   const showLinksRef = useRef(showLinks);
   const rulerActiveRef = useRef(rulerActive);
   const onAddRulerPointRef = useRef(onAddRulerPoint);
+  const onSelectReplayFlightRef = useRef(onSelectReplayFlight);
   const replayModeRef = useRef(replayMode);
   const replayFlightsRef = useRef(replayFlights);
   const replaySnapshotRef = useRef(replaySnapshot);
+  const selectedReplayFlightIdRef = useRef(selectedReplayFlightId);
   const searchItemsRef = useRef<FixSearchItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -79,10 +85,15 @@ export default function MapView({
   }, [onAddRulerPoint]);
 
   useEffect(() => {
+    onSelectReplayFlightRef.current = onSelectReplayFlight;
+  }, [onSelectReplayFlight]);
+
+  useEffect(() => {
     replayModeRef.current = replayMode;
     replayFlightsRef.current = replayFlights;
     replaySnapshotRef.current = replaySnapshot;
-  }, [replayFlights, replayMode, replaySnapshot]);
+    selectedReplayFlightIdRef.current = selectedReplayFlightId;
+  }, [replayFlights, replayMode, replaySnapshot, selectedReplayFlightId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,12 +116,23 @@ export default function MapView({
       mapRef.current = map;
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
       map.on("click", (event: MapMouseEvent) => {
-        if (!rulerActiveRef.current) {
+        if (rulerActiveRef.current) {
+          event.preventDefault();
+          onAddRulerPointRef.current([event.lngLat.lng, event.lngLat.lat]);
           return;
         }
 
-        event.preventDefault();
-        onAddRulerPointRef.current([event.lngLat.lng, event.lngLat.lat]);
+        if (!map.getLayer("adsb-aircraft-layer")) {
+          return;
+        }
+
+        const aircraftFeatures = map.queryRenderedFeatures(event.point, {
+          layers: ["adsb-aircraft-layer"],
+        });
+        const flightId = aircraftFeatures[0]?.properties?.flightId;
+        if (typeof flightId === "string") {
+          onSelectReplayFlightRef.current?.(flightId);
+        }
       });
       map.on("moveend", () => {
         updateAdsbReplayLayers(
@@ -118,6 +140,7 @@ export default function MapView({
           replayModeRef.current,
           replayFlightsRef.current,
           replaySnapshotRef.current,
+          selectedReplayFlightIdRef.current,
         );
       });
 
@@ -167,6 +190,7 @@ export default function MapView({
             replayModeRef.current,
             replayFlightsRef.current,
             replaySnapshotRef.current,
+            selectedReplayFlightIdRef.current,
           );
           fitDataBounds(map, maplibregl, linkData.waypoints, linkData.vors, runways);
         };
@@ -228,8 +252,8 @@ export default function MapView({
       return;
     }
 
-    updateAdsbReplayLayers(map, replayMode, replayFlights, replaySnapshot);
-  }, [replayFlights, replayMode, replaySnapshot]);
+    updateAdsbReplayLayers(map, replayMode, replayFlights, replaySnapshot, selectedReplayFlightId);
+  }, [replayFlights, replayMode, replaySnapshot, selectedReplayFlightId]);
 
   useEffect(() => {
     if (!selectedSearchTarget) {

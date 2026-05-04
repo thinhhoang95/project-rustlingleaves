@@ -68,11 +68,16 @@ export function buildVisibleFlightLineCollection(
   flights: ReplayFlight[],
   aircraft: AircraftState[],
   bounds: BoundsLike | null,
+  selectedFlightId: string | null = null,
 ): FlightLineFeatureCollection {
   const flightsById = new Map(flights.map((flight) => [flight.id, flight]));
   const features: FlightLineFeature[] = [];
 
   for (const state of aircraft) {
+    if (selectedFlightId && state.flightId !== selectedFlightId) {
+      continue;
+    }
+
     if (!coordinateIsInBounds(state.coordinate, bounds)) {
       continue;
     }

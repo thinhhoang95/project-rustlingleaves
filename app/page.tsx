@@ -5,6 +5,7 @@ import Header from "@/components/Header";
 import ChatPanel from "@/components/ChatPanel";
 import MeasurePanel, { buildMeasureSegments } from "@/components/MeasurePanel";
 import MapView from "@/components/map-view";
+import SimulationFlightDetailsPanel from "@/components/SimulationFlightDetailsPanel";
 import type { MapCoordinate, MapSearchItem } from "@/components/map-view-types";
 import ViewOptionsControl from "@/components/ViewOptionsControl";
 import { useAdsbReplay } from "@/components/adsb-replay/useAdsbReplay";
@@ -24,6 +25,7 @@ export default function Page() {
   const [rulerPoints, setRulerPoints] = useState<MapCoordinate[]>([]);
   const [searchItems, setSearchItems] = useState<MapSearchItem[]>([]);
   const [selectedSearchTarget, setSelectedSearchTarget] = useState<{ id: string; requestId: number; time?: number } | null>(null);
+  const [selectedSimulationFlightId, setSelectedSimulationFlightId] = useState<string | null>(null);
   const adsbReplay = useAdsbReplay(adsbReplayTime);
   const simulationReplay = useSimulationReplay(simulationReplayTime);
   const activeReplay = replayMode === "simulation" ? simulationReplay : adsbReplay;
@@ -47,6 +49,19 @@ export default function Page() {
 
     return [...searchItems, ...flightItems];
   }, [activeReplay.flights, searchItems]);
+  const selectedSimulationFlight = useMemo(
+    () =>
+      replayMode === "simulation" && selectedSimulationFlightId
+        ? simulationReplay.flights.find((flight) => flight.id === selectedSimulationFlightId) ?? null
+        : null,
+    [replayMode, selectedSimulationFlightId, simulationReplay.flights],
+  );
+  const selectSimulationFlight = useCallback((flightId: string) => {
+    setSelectedSimulationFlightId(flightId);
+  }, []);
+  const deselectSimulationFlight = useCallback(() => {
+    setSelectedSimulationFlightId(null);
+  }, []);
 
   useEffect(() => {
     window.__ADS_B_REPLAY_TIME_OF_DAY__ = ((Math.floor(effectiveReplayTime) % 86400) + 86400) % 86400;
@@ -115,12 +130,16 @@ export default function Page() {
         onReplayModeChange={(mode) => {
           setReplayMode(mode);
           setReplayPlaying(false);
+          if (mode !== "simulation") {
+            deselectSimulationFlight();
+          }
         }}
         simulationCacheLoading={simulationReplay.loading || simulationReplay.invalidating}
         onInvalidateSimulationCache={() => {
           setReplayMode("simulation");
           setReplayPlaying(false);
           setSimulationReplayTime(0);
+          deselectSimulationFlight();
           void simulationReplay.invalidateCache();
         }}
         onSelectSearchItem={(itemId) => {
@@ -134,9 +153,16 @@ export default function Page() {
 
           if (item?.type === "Flight") {
             setReplayPlaying(false);
+            if (replayMode === "simulation") {
+              selectSimulationFlight(item.flightId);
+            } else {
+              deselectSimulationFlight();
+            }
             if (targetTime !== undefined && targetTime !== effectiveReplayTime) {
               setActiveReplayTime(targetTime);
             }
+          } else {
+            deselectSimulationFlight();
           }
 
           setSelectedSearchTarget((previousTarget) => ({
@@ -146,11 +172,6 @@ export default function Page() {
           }));
         }}
       />
-      {showChat ? (
-        <div className="chat-panel-anchor">
-          <ChatPanel />
-        </div>
-      ) : null}
       <MapView
         showWaypoints={showWaypoints}
         showLinks={showLinks}
@@ -158,11 +179,27 @@ export default function Page() {
         rulerPoints={rulerPoints}
         onAddRulerPoint={(point) => setRulerPoints((previousPoints) => [...previousPoints, point])}
         selectedSearchTarget={selectedSearchTarget}
+        onSelectReplayFlight={(flightId) => {
+          if (replayMode === "simulation") {
+            selectSimulationFlight(flightId);
+          }
+        }}
         onSearchItemsChange={setSearchItems}
         replayMode={replayMode}
         replayFlights={activeReplay.flights}
         replaySnapshot={activeReplay.snapshot}
+        selectedReplayFlightId={replayMode === "simulation" ? selectedSimulationFlightId : null}
       />
+
+      <div className="parent-pane page-pane page-pane-left" aria-label="Left panels">
+        {selectedSimulationFlight ? (
+          <SimulationFlightDetailsPanel flight={selectedSimulationFlight} onClose={deselectSimulationFlight} />
+        ) : null}
+      </div>
+
+      <div className="parent-pane page-pane page-pane-right" aria-label="Right panels">
+        {showChat ? <ChatPanel /> : null}
+      </div>
 
       <div className="view-options-anchor">
         {rulerActive ? <MeasurePanel points={rulerPoints} segments={measureSegments} /> : null}

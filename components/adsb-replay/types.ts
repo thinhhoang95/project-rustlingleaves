@@ -17,6 +17,16 @@ export type ReplayFlight = {
   points: FlightPoint[];
   firstTime: number;
   lastTime: number;
+  operation?: "departure" | "arrival";
+  runway?: string;
+  departureTime?: number;
+  departureTimeUtc?: string;
+  arrivalTime?: number;
+  arrivalTimeUtc?: string;
+  lastEventTime?: number;
+  lastEventTimeUtc?: string;
+  originalFixSequence?: string[];
+  originalFixCount?: number;
 };
 
 export type ReplayMetadata = {
