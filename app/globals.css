@@ -580,42 +580,24 @@ a {
   gap: 6px;
 }
 
-.flight-operation-pill {
-  flex: 0 0 auto;
-  padding: 4px 7px;
-  border-radius: 999px;
-  color: #06231d;
-  background: rgba(94, 234, 212, 0.94);
-  font-size: 0.67rem;
-  font-weight: 900;
-  line-height: 1;
-}
-
 .side-panel-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
   height: 26px;
-  min-width: 66px;
-  padding: 0 8px;
-  border: 1px solid rgba(248, 113, 113, 0.34);
-  border-radius: 999px;
+  width: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
   color: #fecaca;
   background: rgba(127, 29, 29, 0.36);
   cursor: pointer;
   transition: background 140ms ease, color 140ms ease, transform 140ms ease;
 }
 
-.side-panel-close span {
-  font-size: 0.68rem;
-  font-weight: 850;
-  line-height: 1;
-}
-
 .side-panel-close svg {
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
 }
 
 .side-panel-close:hover,
@@ -656,6 +638,62 @@ a {
   overflow-wrap: anywhere;
 }
 
+.flight-profile-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.flight-profile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.flight-profile-header strong {
+  color: rgba(245, 158, 11, 0.96);
+}
+
+.flight-profile-chart {
+  width: 100%;
+  min-width: 0;
+  height: 178px;
+  padding: 8px 4px 2px 0;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 12px;
+  background: rgba(5, 9, 18, 0.34);
+}
+
+.flight-profile-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 9px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+  color: var(--ink);
+  background: rgba(7, 13, 22, 0.95);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.26);
+}
+
+.flight-profile-tooltip span,
+.flight-profile-tooltip small {
+  color: var(--ink-soft);
+  font-size: 0.66rem;
+  font-weight: 750;
+}
+
+.flight-profile-tooltip strong {
+  color: #eef4fb;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
 .flight-fix-section {
   margin-top: 12px;
   padding-top: 12px;
@@ -684,13 +722,50 @@ a {
 }
 
 .flight-fix-chip {
+  appearance: none;
+  margin: 0;
   padding: 4px 7px;
+  border: 1px solid transparent;
   border-radius: 999px;
   color: rgba(238, 244, 251, 0.9);
   background: rgba(148, 163, 184, 0.12);
+  cursor: pointer;
+  font-family: inherit;
   font-size: 0.68rem;
   font-weight: 800;
   line-height: 1;
+}
+
+.flight-fix-chip:hover,
+.flight-fix-chip:focus-visible {
+  border-color: rgba(94, 234, 212, 0.58);
+  color: #f8fdff;
+  background: rgba(94, 234, 212, 0.18);
+}
+
+.flight-fix-chip:focus-visible {
+  outline: 2px solid rgba(94, 234, 212, 0.72);
+  outline-offset: 2px;
+}
+
+.flight-fix-chip-atc {
+  border-color: rgba(245, 158, 11, 0.68);
+  color: #fff7ed;
+  background: rgba(245, 158, 11, 0.26);
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.2), 0 0 18px rgba(245, 158, 11, 0.22);
+}
+
+.flight-fix-chip-final {
+  border-color: rgba(59, 130, 246, 0.72);
+  color: #eff6ff;
+  background: rgba(59, 130, 246, 0.28);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2), 0 0 18px rgba(59, 130, 246, 0.2);
+}
+
+.flight-fix-chip-final:hover,
+.flight-fix-chip-final:focus-visible {
+  border-color: rgba(96, 165, 250, 0.84);
+  background: rgba(59, 130, 246, 0.38);
 }
 
 .view-options-anchor {

@@ -56,12 +56,39 @@ export default function Page() {
         : null,
     [replayMode, selectedSimulationFlightId, simulationReplay.flights],
   );
+  const selectMapTarget = useCallback((itemId: string, time?: number) => {
+    setSelectedSearchTarget((previousTarget) => ({
+      id: itemId,
+      requestId: (previousTarget?.requestId ?? 0) + 1,
+      time,
+    }));
+  }, []);
   const selectSimulationFlight = useCallback((flightId: string) => {
     setSelectedSimulationFlightId(flightId);
   }, []);
   const deselectSimulationFlight = useCallback(() => {
     setSelectedSimulationFlightId(null);
   }, []);
+  const selectFixFromFlightDetails = useCallback(
+    (fixName: string) => {
+      const normalizedFixName = fixName.trim().toUpperCase();
+      const item = searchItems.find(
+        (searchItem) =>
+          searchItem.type !== "Flight" &&
+          searchItem.name.trim().toUpperCase() === normalizedFixName,
+      );
+
+      if (!item) {
+        return;
+      }
+
+      if (item.type === "Waypoint") {
+        setShowWaypoints(true);
+      }
+      selectMapTarget(item.id);
+    },
+    [searchItems, selectMapTarget],
+  );
 
   useEffect(() => {
     window.__ADS_B_REPLAY_TIME_OF_DAY__ = ((Math.floor(effectiveReplayTime) % 86400) + 86400) % 86400;
@@ -165,11 +192,7 @@ export default function Page() {
             deselectSimulationFlight();
           }
 
-          setSelectedSearchTarget((previousTarget) => ({
-            id: itemId,
-            requestId: (previousTarget?.requestId ?? 0) + 1,
-            time: targetTime,
-          }));
+          selectMapTarget(itemId, targetTime);
         }}
       />
       <MapView
@@ -193,7 +216,12 @@ export default function Page() {
 
       <div className="parent-pane page-pane page-pane-left" aria-label="Left panels">
         {selectedSimulationFlight ? (
-          <SimulationFlightDetailsPanel flight={selectedSimulationFlight} onClose={deselectSimulationFlight} />
+          <SimulationFlightDetailsPanel
+            flight={selectedSimulationFlight}
+            currentSimulationTime={effectiveReplayTime}
+            onClose={deselectSimulationFlight}
+            onSelectFix={selectFixFromFlightDetails}
+          />
         ) : null}
       </div>
 

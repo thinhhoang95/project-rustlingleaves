@@ -516,7 +516,7 @@ export function updateAdsbReplayLayers(
   const flightLineSource = map.getSource(FLIGHT_LINE_SOURCE_ID) as GeoJSONSource | undefined;
   flightLineSource?.setData(
     visible
-      ? buildVisibleFlightLineCollection(replayFlights, replaySnapshot.aircraft, map.getBounds(), selectedReplayFlightId)
+      ? buildVisibleFlightLineCollection(replayFlights, replaySnapshot.aircraft, selectedReplayFlightId)
       : emptyFlightLineCollection(),
   );
 

@@ -10,6 +10,30 @@ export type FlightPoint = {
   breakpointMask: number;
 };
 
+export type WaitAtcPoint = {
+  source: "fix" | "ghost";
+  identifier: string;
+  latitude: number;
+  longitude: number;
+  lateralPathToken?: string;
+  distanceNm?: number;
+  routeIndex?: number | null;
+  matchedCourseDegrees?: number | null;
+  finalCourseDegrees?: number;
+  downwindCourseDegrees?: number;
+};
+
+export type FinalFix = {
+  identifier: string;
+  latitude?: number;
+  longitude?: number;
+  distanceNm?: number;
+  alongTrackNm?: number;
+  crossTrackNm?: number;
+  targetDistanceNm?: number;
+  crossTrackToleranceNm?: number;
+};
+
 export type ReplayFlight = {
   id: string;
   callsign: string;
@@ -25,8 +49,12 @@ export type ReplayFlight = {
   arrivalTimeUtc?: string;
   lastEventTime?: number;
   lastEventTimeUtc?: string;
+  fixSequence?: string[];
+  fixCount?: number;
   originalFixSequence?: string[];
   originalFixCount?: number;
+  waitAtcPoint?: WaitAtcPoint;
+  finalFix?: FinalFix;
 };
 
 export type ReplayMetadata = {

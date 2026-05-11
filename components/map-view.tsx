@@ -40,6 +40,10 @@ type MapViewProps = {
 
 const BASE_MAP_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
+function isMapStyleReady(map: MapLibreMap) {
+  return map.isStyleLoaded() === true;
+}
+
 export default function MapView({
   showWaypoints,
   showLinks,
@@ -59,6 +63,7 @@ export default function MapView({
   const showWaypointsRef = useRef(showWaypoints);
   const showLinksRef = useRef(showLinks);
   const rulerActiveRef = useRef(rulerActive);
+  const rulerPointsRef = useRef(rulerPoints);
   const onAddRulerPointRef = useRef(onAddRulerPoint);
   const onSelectReplayFlightRef = useRef(onSelectReplayFlight);
   const replayModeRef = useRef(replayMode);
@@ -79,6 +84,10 @@ export default function MapView({
   useEffect(() => {
     rulerActiveRef.current = rulerActive;
   }, [rulerActive]);
+
+  useEffect(() => {
+    rulerPointsRef.current = rulerPoints;
+  }, [rulerPoints]);
 
   useEffect(() => {
     onAddRulerPointRef.current = onAddRulerPoint;
@@ -122,6 +131,10 @@ export default function MapView({
           return;
         }
 
+        if (!isMapStyleReady(map)) {
+          return;
+        }
+
         if (!map.getLayer("adsb-aircraft-layer")) {
           return;
         }
@@ -135,6 +148,10 @@ export default function MapView({
         }
       });
       map.on("moveend", () => {
+        if (!isMapStyleReady(map)) {
+          return;
+        }
+
         updateAdsbReplayLayers(
           map,
           replayModeRef.current,
@@ -183,7 +200,7 @@ export default function MapView({
           addLinkLayers(map, linkData.links, showLinksRef.current);
           addWaypointLayers(map, linkData.waypoints, showWaypointsRef.current);
           addVorLayers(map, linkData.vors);
-          addRulerLayers(map, [], rulerActiveRef.current);
+          addRulerLayers(map, rulerPointsRef.current, rulerActiveRef.current);
           addAdsbReplayLayers(map, replayModeRef.current === "adsb");
           updateAdsbReplayLayers(
             map,
@@ -195,7 +212,7 @@ export default function MapView({
           fitDataBounds(map, maplibregl, linkData.waypoints, linkData.vors, runways);
         };
 
-        if (map.loaded()) {
+        if (isMapStyleReady(map)) {
           addMapLayers();
         } else {
           map.once("load", addMapLayers);
@@ -220,7 +237,7 @@ export default function MapView({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) {
+    if (!map || !isMapStyleReady(map)) {
       return;
     }
 
@@ -230,7 +247,7 @@ export default function MapView({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) {
+    if (!map || !isMapStyleReady(map)) {
       return;
     }
 
@@ -239,7 +256,7 @@ export default function MapView({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) {
+    if (!map || !isMapStyleReady(map)) {
       return;
     }
 
@@ -248,7 +265,7 @@ export default function MapView({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) {
+    if (!map || !isMapStyleReady(map)) {
       return;
     }
 

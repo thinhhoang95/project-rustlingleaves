@@ -8,38 +8,6 @@ import type {
   ReplayFlight,
 } from "./types";
 
-type BoundsLike = {
-  getWest: () => number;
-  getEast: () => number;
-  getSouth: () => number;
-  getNorth: () => number;
-};
-
-function isBoundsObject(bounds: unknown): bounds is BoundsLike {
-  return (
-    typeof bounds === "object" &&
-    bounds !== null &&
-    "getWest" in bounds &&
-    "getEast" in bounds &&
-    "getSouth" in bounds &&
-    "getNorth" in bounds
-  );
-}
-
-function coordinateIsInBounds(coordinate: MapCoordinate, bounds: BoundsLike | null): boolean {
-  if (!bounds || !isBoundsObject(bounds)) {
-    return true;
-  }
-
-  const [longitude, latitude] = coordinate;
-  return (
-    longitude >= bounds.getWest() &&
-    longitude <= bounds.getEast() &&
-    latitude >= bounds.getSouth() &&
-    latitude <= bounds.getNorth()
-  );
-}
-
 export function buildAircraftCollection(aircraft: AircraftState[]): AircraftFeatureCollection {
   return {
     type: "FeatureCollection",
@@ -67,7 +35,6 @@ export function buildAircraftCollection(aircraft: AircraftState[]): AircraftFeat
 export function buildVisibleFlightLineCollection(
   flights: ReplayFlight[],
   aircraft: AircraftState[],
-  bounds: BoundsLike | null,
   selectedFlightId: string | null = null,
 ): FlightLineFeatureCollection {
   const flightsById = new Map(flights.map((flight) => [flight.id, flight]));
@@ -75,10 +42,6 @@ export function buildVisibleFlightLineCollection(
 
   for (const state of aircraft) {
     if (selectedFlightId && state.flightId !== selectedFlightId) {
-      continue;
-    }
-
-    if (!coordinateIsInBounds(state.coordinate, bounds)) {
       continue;
     }
 

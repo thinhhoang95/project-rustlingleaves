@@ -1,4 +1,4 @@
-import type { FlightPoint, ReplayFlight, ReplayMetadata } from "./types";
+import type { FinalFix, FlightPoint, ReplayFlight, ReplayMetadata, WaitAtcPoint } from "./types";
 
 type RawFlight = {
   flight_id?: unknown;
@@ -15,8 +15,15 @@ type RawFlight = {
   time_at_last_event?: unknown;
   time_at_last_event_utc?: unknown;
   runway?: unknown;
+  fix_sequence?: unknown;
+  fix_count?: unknown;
+  base_route?: unknown;
+  atc_wait_point?: unknown;
+  final_fix?: unknown;
+  baseline_final_fix?: unknown;
   original_fix_sequence?: unknown;
   original_fix_count?: unknown;
+  wait_atc_point?: unknown;
 };
 
 const SECONDS_PER_DAY = 24 * 60 * 60;
@@ -36,15 +43,79 @@ function asTrimmedString(value: unknown): string | undefined {
 }
 
 function normalizeFixSequence(value: unknown): string[] | undefined {
-  const fixSequence = asTrimmedString(value);
+  const fixSequence =
+    typeof value === "string"
+      ? value.split(">")
+      : Array.isArray(value)
+        ? value
+        : undefined;
+
   if (!fixSequence) {
     return undefined;
   }
 
-  return fixSequence
-    .split(">")
-    .map((fixName) => fixName.trim())
+  const normalizedFixSequence = fixSequence
+    .map((fixName) => String(fixName).trim())
     .filter(Boolean);
+
+  return normalizedFixSequence.length ? normalizedFixSequence : undefined;
+}
+
+function normalizeBaseRoute(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+}
+
+function normalizeWaitAtcPoint(value: unknown): WaitAtcPoint | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const rawPoint = value as Record<string, unknown>;
+  const source = rawPoint.source === "ghost" ? "ghost" : rawPoint.source === "fix" ? "fix" : undefined;
+  const identifier = asTrimmedString(rawPoint.identifier);
+  const latitude = asFiniteNumber(rawPoint.lat);
+  const longitude = asFiniteNumber(rawPoint.lon);
+
+  if (!source || !identifier || latitude === null || longitude === null) {
+    return undefined;
+  }
+
+  return {
+    source,
+    identifier,
+    latitude,
+    longitude,
+    lateralPathToken: asTrimmedString(rawPoint.lateral_path_token),
+    distanceNm: asFiniteNumber(rawPoint.distance_nm) ?? undefined,
+    routeIndex: asFiniteNumber(rawPoint.route_index),
+    matchedCourseDegrees: asFiniteNumber(rawPoint.matched_course_deg),
+    finalCourseDegrees: asFiniteNumber(rawPoint.final_course_deg) ?? undefined,
+    downwindCourseDegrees: asFiniteNumber(rawPoint.downwind_course_deg) ?? undefined,
+  };
+}
+
+function normalizeFinalFix(value: unknown): FinalFix | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const rawFix = value as Record<string, unknown>;
+  const identifier = asTrimmedString(rawFix.identifier);
+
+  if (!identifier) {
+    return undefined;
+  }
+
+  return {
+    identifier,
+    latitude: asFiniteNumber(rawFix.lat) ?? undefined,
+    longitude: asFiniteNumber(rawFix.lon) ?? undefined,
+    distanceNm: asFiniteNumber(rawFix.distance_nm) ?? undefined,
+    alongTrackNm: asFiniteNumber(rawFix.along_track_nm) ?? undefined,
+    crossTrackNm: asFiniteNumber(rawFix.cross_track_nm) ?? undefined,
+    targetDistanceNm: asFiniteNumber(rawFix.target_distance_nm) ?? undefined,
+    crossTrackToleranceNm: asFiniteNumber(rawFix.cross_track_tolerance_nm) ?? undefined,
+  };
 }
 
 type ColumnIndexes = {
@@ -136,7 +207,19 @@ function normalizeFlight(rawFlight: RawFlight): ReplayFlight | null {
   const departureTime = asFiniteNumber(rawFlight.departure_time) ?? undefined;
   const arrivalTime = asFiniteNumber(rawFlight.time_at_first_fix) ?? undefined;
   const lastEventTime = asFiniteNumber(rawFlight.time_at_last_event) ?? undefined;
-  const originalFixCount = asFiniteNumber(rawFlight.original_fix_count) ?? undefined;
+  const baseRoute = normalizeBaseRoute(rawFlight.base_route);
+  const fixSequence =
+    normalizeFixSequence(rawFlight.fix_sequence) ??
+    normalizeFixSequence(baseRoute?.fix_sequence) ??
+    normalizeFixSequence(baseRoute?.lateral_path) ??
+    normalizeFixSequence(rawFlight.original_fix_sequence);
+  const fixCount =
+    asFiniteNumber(rawFlight.fix_count) ??
+    asFiniteNumber(baseRoute?.fix_count) ??
+    asFiniteNumber(rawFlight.original_fix_count) ??
+    fixSequence?.length;
+  const waitAtcPoint = normalizeWaitAtcPoint(rawFlight.atc_wait_point) ?? normalizeWaitAtcPoint(rawFlight.wait_atc_point);
+  const finalFix = normalizeFinalFix(rawFlight.final_fix) ?? normalizeFinalFix(rawFlight.baseline_final_fix);
 
   return {
     id: String(rawFlight.flight_id || rawFlight.icao24 || rawFlight.callsign || crypto.randomUUID()),
@@ -153,8 +236,12 @@ function normalizeFlight(rawFlight: RawFlight): ReplayFlight | null {
     arrivalTimeUtc: asTrimmedString(rawFlight.time_at_first_fix_utc),
     lastEventTime,
     lastEventTimeUtc: asTrimmedString(rawFlight.time_at_last_event_utc),
+    fixSequence,
+    fixCount,
     originalFixSequence: normalizeFixSequence(rawFlight.original_fix_sequence),
-    originalFixCount,
+    originalFixCount: asFiniteNumber(rawFlight.original_fix_count) ?? undefined,
+    waitAtcPoint,
+    finalFix,
   };
 }
 
