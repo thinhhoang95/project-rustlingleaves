@@ -30,6 +30,13 @@ type VerticalProfilePoint = {
   elapsedLabel: string;
 };
 
+type CasProfileChartPoint = {
+  time: number;
+  casKts: number;
+  utcTime: string;
+  elapsedLabel: string;
+};
+
 const METERS_TO_FEET = 3.280839895;
 
 function formatUtcTime(epochSeconds: number | undefined, utcTime: string | undefined): string {
@@ -106,6 +113,44 @@ function formatAltitude(altitudeFt: number): string {
   return `${altitudeFt.toLocaleString("en-US")} ft`;
 }
 
+function formatCalibratedAirspeed(casKts: number): string {
+  return `${Math.round(casKts).toLocaleString("en-US")} kt`;
+}
+
+function interpolateCalibratedAirspeed(
+  profile: { time: number; casKts: number }[] | undefined,
+  time: number,
+): number | null {
+  if (!profile?.length || time < profile[0].time || time > profile[profile.length - 1].time) {
+    return null;
+  }
+
+  if (profile.length === 1) {
+    return profile[0].casKts;
+  }
+
+  let low = 0;
+  let high = profile.length - 2;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    if (profile[mid].time <= time && time <= profile[mid + 1].time) {
+      const fromPoint = profile[mid];
+      const toPoint = profile[mid + 1];
+      const duration = toPoint.time - fromPoint.time;
+      const fraction = duration > 0 ? Math.max(0, Math.min(1, (time - fromPoint.time) / duration)) : 0;
+      return fromPoint.casKts + (toPoint.casKts - fromPoint.casKts) * fraction;
+    }
+    if (profile[mid].time > time) {
+      high = mid - 1;
+    } else {
+      low = mid + 1;
+    }
+  }
+
+  return null;
+}
+
 function VerticalProfileTooltip({ active, payload }: TooltipContentProps) {
   if (!active || !payload?.length) {
     return null;
@@ -120,6 +165,25 @@ function VerticalProfileTooltip({ active, payload }: TooltipContentProps) {
     <div className="flight-profile-tooltip">
       <span>{point.utcTime}</span>
       <strong>{formatAltitude(point.altitudeFt)}</strong>
+      <small>T+{point.elapsedLabel}</small>
+    </div>
+  );
+}
+
+function CasProfileTooltip({ active, payload }: TooltipContentProps) {
+  if (!active || !payload?.length) {
+    return null;
+  }
+
+  const point = payload[0]?.payload as CasProfileChartPoint | undefined;
+  if (!point) {
+    return null;
+  }
+
+  return (
+    <div className="flight-profile-tooltip">
+      <span>{point.utcTime}</span>
+      <strong>{formatCalibratedAirspeed(point.casKts)}</strong>
       <small>T+{point.elapsedLabel}</small>
     </div>
   );
@@ -169,6 +233,30 @@ export default function SimulationFlightDetailsPanel({
       elapsedLabel: formatElapsedTime(currentSimulationTime, flight.firstTime),
     };
   }, [currentSimulationTime, flight]);
+  const casProfileData = useMemo<CasProfileChartPoint[]>(
+    () =>
+      flight.casProfile?.map((point) => ({
+        time: point.time,
+        casKts: point.casKts,
+        utcTime: formatUtcTime(point.time, undefined),
+        elapsedLabel: formatElapsedTime(point.time, flight.firstTime),
+      })) ?? [],
+    [flight.casProfile, flight.firstTime],
+  );
+  const currentCasProfilePoint = useMemo<CasProfileChartPoint | null>(() => {
+    const casKts = interpolateCalibratedAirspeed(flight.casProfile, currentSimulationTime);
+
+    if (casKts === null) {
+      return null;
+    }
+
+    return {
+      time: currentSimulationTime,
+      casKts,
+      utcTime: formatUtcTime(currentSimulationTime, undefined),
+      elapsedLabel: formatElapsedTime(currentSimulationTime, flight.firstTime),
+    };
+  }, [currentSimulationTime, flight.casProfile, flight.firstTime]);
 
   return (
     <section className="side-panel flight-details-panel" aria-label="Selected simulation flight">
@@ -255,6 +343,75 @@ export default function SimulationFlightDetailsPanel({
                     <Scatter
                       data={[currentProfilePoint]}
                       dataKey="altitudeFt"
+                      fill="#f59e0b"
+                      isAnimationActive={false}
+                    />
+                  </>
+                ) : null}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      ) : null}
+
+      {casProfileData.length ? (
+        <div className="flight-profile-section">
+          <div className="flight-profile-header">
+            <span>CAS profile</span>
+            {currentCasProfilePoint ? (
+              <strong className="flight-profile-value-speed">
+                {formatCalibratedAirspeed(currentCasProfilePoint.casKts)}
+              </strong>
+            ) : null}
+          </div>
+          <div className="flight-profile-chart" aria-label="Calibrated airspeed over time">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 270, height: 164 }}>
+              <ComposedChart data={casProfileData} margin={{ top: 8, right: 8, bottom: 4, left: -8 }}>
+                <CartesianGrid stroke="rgba(148, 163, 184, 0.14)" vertical={false} />
+                <XAxis
+                  dataKey="time"
+                  type="number"
+                  domain={["dataMin", "dataMax"]}
+                  tickFormatter={(time) => formatElapsedTime(Number(time), flight.firstTime)}
+                  stroke="rgba(159, 177, 195, 0.72)"
+                  tick={{ fill: "rgba(159, 177, 195, 0.82)", fontSize: 10, fontWeight: 700 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "rgba(148, 163, 184, 0.18)" }}
+                  minTickGap={20}
+                />
+                <YAxis
+                  dataKey="casKts"
+                  width={46}
+                  tickFormatter={(casKts) => Math.round(Number(casKts)).toString()}
+                  stroke="rgba(159, 177, 195, 0.72)"
+                  tick={{ fill: "rgba(159, 177, 195, 0.82)", fontSize: 10, fontWeight: 700 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "rgba(148, 163, 184, 0.18)" }}
+                />
+                <Tooltip
+                  content={(tooltipProps) => <CasProfileTooltip {...tooltipProps} />}
+                  cursor={{ stroke: "rgba(96, 165, 250, 0.3)" }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="casKts"
+                  name="CAS"
+                  stroke="rgba(96, 165, 250, 0.96)"
+                  strokeWidth={2.4}
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0, fill: "#f8fdff" }}
+                  isAnimationActive={false}
+                />
+                {currentCasProfilePoint ? (
+                  <>
+                    <ReferenceLine
+                      x={currentCasProfilePoint.time}
+                      stroke="rgba(245, 158, 11, 0.58)"
+                      strokeDasharray="3 3"
+                    />
+                    <Scatter
+                      data={[currentCasProfilePoint]}
+                      dataKey="casKts"
                       fill="#f59e0b"
                       isAnimationActive={false}
                     />

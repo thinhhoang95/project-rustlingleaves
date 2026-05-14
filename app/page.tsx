@@ -5,6 +5,7 @@ import Header from "@/components/Header";
 import ChatPanel from "@/components/ChatPanel";
 import MeasurePanel, { buildMeasureSegments } from "@/components/MeasurePanel";
 import MapView from "@/components/map-view";
+import SimulationFeasibilityPanel from "@/components/SimulationFeasibilityPanel";
 import SimulationFlightDetailsPanel from "@/components/SimulationFlightDetailsPanel";
 import type { MapCoordinate, MapSearchItem } from "@/components/map-view-types";
 import ViewOptionsControl from "@/components/ViewOptionsControl";
@@ -26,6 +27,8 @@ export default function Page() {
   const [searchItems, setSearchItems] = useState<MapSearchItem[]>([]);
   const [selectedSearchTarget, setSelectedSearchTarget] = useState<{ id: string; requestId: number; time?: number } | null>(null);
   const [selectedSimulationFlightId, setSelectedSimulationFlightId] = useState<string | null>(null);
+  const [showFeasibilityPanel, setShowFeasibilityPanel] = useState(false);
+  const [simulationEvalRefreshToken, setSimulationEvalRefreshToken] = useState(0);
   const adsbReplay = useAdsbReplay(adsbReplayTime);
   const simulationReplay = useSimulationReplay(simulationReplayTime);
   const activeReplay = replayMode === "simulation" ? simulationReplay : adsbReplay;
@@ -69,6 +72,14 @@ export default function Page() {
   const deselectSimulationFlight = useCallback(() => {
     setSelectedSimulationFlightId(null);
   }, []);
+  const openFeasibilityPanel = useCallback(() => {
+    setReplayMode("simulation");
+    setReplayPlaying(false);
+    setShowFeasibilityPanel(true);
+  }, []);
+  const closeFeasibilityPanel = useCallback(() => {
+    setShowFeasibilityPanel(false);
+  }, []);
   const selectFixFromFlightDetails = useCallback(
     (fixName: string) => {
       const normalizedFixName = fixName.trim().toUpperCase();
@@ -88,6 +99,28 @@ export default function Page() {
       selectMapTarget(item.id);
     },
     [searchItems, selectMapTarget],
+  );
+  const selectSimulationFlightFromEval = useCallback(
+    (flightId: string) => {
+      const flight = simulationReplay.flights.find((candidate) => candidate.id === flightId);
+      const targetTime =
+        flight && (simulationReplayTime < flight.firstTime || simulationReplayTime > flight.lastTime)
+          ? flight.firstTime
+          : flight
+            ? simulationReplayTime || flight.firstTime
+            : undefined;
+
+      setReplayMode("simulation");
+      setReplayPlaying(false);
+      selectSimulationFlight(flightId);
+
+      if (targetTime !== undefined && targetTime !== simulationReplayTime) {
+        setSimulationReplayTime(targetTime);
+      }
+
+      selectMapTarget(`flight:${flightId}`, targetTime);
+    },
+    [selectMapTarget, selectSimulationFlight, simulationReplay.flights, simulationReplayTime],
   );
 
   useEffect(() => {
@@ -159,14 +192,18 @@ export default function Page() {
           setReplayPlaying(false);
           if (mode !== "simulation") {
             deselectSimulationFlight();
+            closeFeasibilityPanel();
           }
         }}
+        onOpenFeasibilityPanel={openFeasibilityPanel}
         simulationCacheLoading={simulationReplay.loading || simulationReplay.invalidating}
         onInvalidateSimulationCache={() => {
           setReplayMode("simulation");
           setReplayPlaying(false);
           setSimulationReplayTime(0);
+          setSimulationEvalRefreshToken((token) => token + 1);
           deselectSimulationFlight();
+          closeFeasibilityPanel();
           void simulationReplay.invalidateCache();
         }}
         onSelectSearchItem={(itemId) => {
@@ -214,13 +251,20 @@ export default function Page() {
         selectedReplayFlightId={replayMode === "simulation" ? selectedSimulationFlightId : null}
       />
 
-      <div className="parent-pane page-pane page-pane-left" aria-label="Left panels">
+      <div className="parent-pane page-pane page-pane-left flight-details-pane" aria-label="Left panels">
         {selectedSimulationFlight ? (
           <SimulationFlightDetailsPanel
             flight={selectedSimulationFlight}
             currentSimulationTime={effectiveReplayTime}
             onClose={deselectSimulationFlight}
             onSelectFix={selectFixFromFlightDetails}
+          />
+        ) : null}
+        {replayMode === "simulation" && showFeasibilityPanel ? (
+          <SimulationFeasibilityPanel
+            refreshToken={simulationEvalRefreshToken}
+            onClose={closeFeasibilityPanel}
+            onSelectFlight={selectSimulationFlightFromEval}
           />
         ) : null}
       </div>

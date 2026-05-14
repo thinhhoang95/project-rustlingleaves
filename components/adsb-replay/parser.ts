@@ -1,4 +1,4 @@
-import type { FinalFix, FlightPoint, ReplayFlight, ReplayMetadata, WaitAtcPoint } from "./types";
+import type { CasProfilePoint, FinalFix, FlightPoint, ReplayFlight, ReplayMetadata, WaitAtcPoint } from "./types";
 
 type RawFlight = {
   flight_id?: unknown;
@@ -24,6 +24,7 @@ type RawFlight = {
   original_fix_sequence?: unknown;
   original_fix_count?: unknown;
   wait_atc_point?: unknown;
+  cas_profile?: unknown;
 };
 
 const SECONDS_PER_DAY = 24 * 60 * 60;
@@ -116,6 +117,73 @@ function normalizeFinalFix(value: unknown): FinalFix | undefined {
     targetDistanceNm: asFiniteNumber(rawFix.target_distance_nm) ?? undefined,
     crossTrackToleranceNm: asFiniteNumber(rawFix.cross_track_tolerance_nm) ?? undefined,
   };
+}
+
+type CasProfileColumnIndexes = {
+  time: number;
+  casKts: number;
+};
+
+const DEFAULT_CAS_PROFILE_COLUMN_INDEXES: CasProfileColumnIndexes = {
+  time: 0,
+  casKts: 1,
+};
+
+function buildCasProfileColumnIndexes(columns: unknown): CasProfileColumnIndexes {
+  if (!Array.isArray(columns)) {
+    return DEFAULT_CAS_PROFILE_COLUMN_INDEXES;
+  }
+
+  const normalizedColumns = columns.map((column) => String(column).trim().toLowerCase());
+  const findIndex = (...names: string[]) => {
+    const index = normalizedColumns.findIndex((column) => names.includes(column));
+    return index >= 0 ? index : null;
+  };
+
+  return {
+    time: findIndex("time", "timestamp") ?? DEFAULT_CAS_PROFILE_COLUMN_INDEXES.time,
+    casKts: findIndex("cas_kts", "cas", "calibrated_airspeed_kts") ?? DEFAULT_CAS_PROFILE_COLUMN_INDEXES.casKts,
+  };
+}
+
+function normalizeCasProfilePoint(
+  rawPoint: unknown,
+  columnIndexes: CasProfileColumnIndexes,
+): CasProfilePoint | null {
+  if (!Array.isArray(rawPoint) || rawPoint.length < 2) {
+    return null;
+  }
+
+  const time = asFiniteNumber(rawPoint[columnIndexes.time]);
+  const casKts = asFiniteNumber(rawPoint[columnIndexes.casKts]);
+
+  if (time === null || casKts === null) {
+    return null;
+  }
+
+  return {
+    time,
+    casKts,
+  };
+}
+
+function normalizeCasProfile(value: unknown): CasProfilePoint[] | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const rawCasProfile = value as Record<string, unknown>;
+  if (!Array.isArray(rawCasProfile.points)) {
+    return undefined;
+  }
+
+  const columnIndexes = buildCasProfileColumnIndexes(rawCasProfile.columns);
+  const casProfile = rawCasProfile.points
+    .map((point) => normalizeCasProfilePoint(point, columnIndexes))
+    .filter((point): point is CasProfilePoint => point !== null)
+    .sort((left, right) => left.time - right.time);
+
+  return casProfile.length ? casProfile : undefined;
 }
 
 type ColumnIndexes = {
@@ -220,6 +288,7 @@ function normalizeFlight(rawFlight: RawFlight): ReplayFlight | null {
     fixSequence?.length;
   const waitAtcPoint = normalizeWaitAtcPoint(rawFlight.atc_wait_point) ?? normalizeWaitAtcPoint(rawFlight.wait_atc_point);
   const finalFix = normalizeFinalFix(rawFlight.final_fix) ?? normalizeFinalFix(rawFlight.baseline_final_fix);
+  const casProfile = normalizeCasProfile(rawFlight.cas_profile);
 
   return {
     id: String(rawFlight.flight_id || rawFlight.icao24 || rawFlight.callsign || crypto.randomUUID()),
@@ -242,6 +311,7 @@ function normalizeFlight(rawFlight: RawFlight): ReplayFlight | null {
     originalFixCount: asFiniteNumber(rawFlight.original_fix_count) ?? undefined,
     waitAtcPoint,
     finalFix,
+    casProfile,
   };
 }
 

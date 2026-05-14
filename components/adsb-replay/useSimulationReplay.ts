@@ -20,7 +20,7 @@ type CachedSimulationReplay = {
   metadata: ReplayMetadata;
 };
 
-const SIMULATION_CACHE_NAME = "simulation-replay-v1";
+const SIMULATION_CACHE_NAME = "simulation-replay-v2";
 const SIMULATION_ENDPOINTS = ["/departures", "/arrivals"] as const;
 
 let memoryCache: CachedSimulationReplay | null = null;

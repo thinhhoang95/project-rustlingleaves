@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import type { ReplayMode } from "@/components/adsb-replay/types";
+import EvalToolsMenu from "@/components/EvalToolsMenu";
 import ReplayModeSwitch from "@/components/view-options/ReplayModeSwitch";
 
 export type HeaderSearchItem = {
@@ -18,6 +19,7 @@ type HeaderProps = {
   onSelectSearchItem: (itemId: string) => void;
   replayMode: ReplayMode;
   onReplayModeChange: (mode: ReplayMode) => void;
+  onOpenFeasibilityPanel: () => void;
   simulationCacheLoading: boolean;
   onInvalidateSimulationCache: () => void;
 };
@@ -29,6 +31,7 @@ export default function Header({
   onSelectSearchItem,
   replayMode,
   onReplayModeChange,
+  onOpenFeasibilityPanel,
   simulationCacheLoading,
   onInvalidateSimulationCache,
 }: HeaderProps) {
@@ -93,6 +96,8 @@ export default function Header({
           onReplayModeChange={onReplayModeChange}
           onInvalidateSimulationCache={onInvalidateSimulationCache}
         />
+
+        <EvalToolsMenu onOpenFeasibility={onOpenFeasibilityPanel} />
 
         <div className="fix-search" role="search">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="fix-search-icon">

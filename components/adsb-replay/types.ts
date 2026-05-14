@@ -10,6 +10,11 @@ export type FlightPoint = {
   breakpointMask: number;
 };
 
+export type CasProfilePoint = {
+  time: number;
+  casKts: number;
+};
+
 export type WaitAtcPoint = {
   source: "fix" | "ghost";
   identifier: string;
@@ -55,6 +60,7 @@ export type ReplayFlight = {
   originalFixCount?: number;
   waitAtcPoint?: WaitAtcPoint;
   finalFix?: FinalFix;
+  casProfile?: CasProfilePoint[];
 };
 
 export type ReplayMetadata = {
