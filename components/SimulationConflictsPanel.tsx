@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ArrowUpDown, Clock3, PlaneLanding, Timer } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -12,10 +13,17 @@ import {
 } from "recharts";
 import type { TooltipContentProps } from "recharts";
 import type { MapCoordinate } from "@/components/map-view-types";
+import {
+  parseSimulationConflicts,
+  type SimulationConflict,
+} from "@/components/simulation-conflict-preview";
 
 type SimulationConflictsPanelProps = {
   refreshToken: number;
+  conflictViewEnabled: boolean;
   onClose: () => void;
+  onConflictViewEnabledChange: (enabled: boolean) => void;
+  onConflictsChange?: (conflicts: SimulationConflict[]) => void;
   onSelectConflict: (selection: SimulationConflictSelection) => void;
 };
 
@@ -24,29 +32,6 @@ export type SimulationConflictSelection = {
   time: number;
   coordinate: MapCoordinate;
   flightIds: [string, string];
-};
-
-type ConflictFlight = {
-  flightNumber: string;
-  flightId: string;
-  runway: string;
-};
-
-type SimulationConflict = {
-  id: string;
-  flightA: ConflictFlight;
-  flightB: ConflictFlight;
-  startTime: number;
-  endTime: number;
-  closestTime: number;
-  closestTimeUtc: string;
-  coordinate: MapCoordinate;
-  lateralDistanceNmi: number;
-  verticalSeparationFt: number;
-  lateralThresholdNmi: number;
-  verticalThresholdFt: number;
-  severity: number;
-  confidence: "confirmed" | "possible";
 };
 
 type ConflictHistogramBin = {
@@ -58,98 +43,8 @@ type ConflictHistogramBin = {
 const CONFLICTS_ENDPOINT = "/tools/evals/conflicts";
 const DISCLOSURE_INCREMENT = 50;
 const LATERAL_HISTOGRAM_BIN_WIDTHS = [0.25, 0.5, 1, 2, 5, 10, 20, 50];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function readString(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function readNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function clampSeverity(value: number): number {
-  return Math.min(1, Math.max(0, value));
-}
-
-function parseConflictFlight(value: unknown): ConflictFlight | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  const flightId = readString(value.flight_id);
-  const flightNumber = readString(value.flight_number) || flightId;
-
-  if (!flightId || !flightNumber) {
-    return null;
-  }
-
-  return {
-    flightNumber,
-    flightId,
-    runway: readString(value.runway),
-  };
-}
-
-function parseConflictConfidence(value: unknown): "confirmed" | "possible" {
-  return readString(value).toLowerCase() === "possible" ? "possible" : "confirmed";
-}
-
-function parseConflicts(payload: unknown): SimulationConflict[] {
-  if (!Array.isArray(payload)) {
-    throw new Error("Unexpected conflicts response");
-  }
-
-  return payload
-    .map((item) => {
-      if (!isRecord(item)) {
-        return null;
-      }
-
-      const flightA = parseConflictFlight(item.flight_a);
-      const flightB = parseConflictFlight(item.flight_b);
-      const latitude = readNumber(item.latitude);
-      const longitude = readNumber(item.longitude);
-      const closestTime = readNumber(item.closest_time);
-
-      if (!flightA || !flightB || latitude === null || longitude === null || closestTime === null) {
-        return null;
-      }
-
-      const startTime = readNumber(item.start_time) ?? closestTime;
-      const endTime = readNumber(item.end_time) ?? closestTime;
-      const severity = clampSeverity(readNumber(item.severity) ?? 0);
-      const id = [
-        flightA.flightId,
-        flightB.flightId,
-        Math.round(closestTime),
-        latitude.toFixed(5),
-        longitude.toFixed(5),
-      ].join(":");
-
-      return {
-        id,
-        flightA,
-        flightB,
-        startTime,
-        endTime,
-        closestTime,
-        closestTimeUtc: readString(item.closest_time_utc),
-        coordinate: [longitude, latitude] as MapCoordinate,
-        lateralDistanceNmi: readNumber(item.lateral_distance_nmi) ?? 0,
-        verticalSeparationFt: readNumber(item.vertical_separation_ft) ?? 0,
-        lateralThresholdNmi: readNumber(item.lateral_threshold_nmi) ?? 10,
-        verticalThresholdFt: readNumber(item.vertical_threshold_ft) ?? 1000,
-        severity,
-        confidence: parseConflictConfidence(item.confidence),
-      };
-    })
-    .filter((item): item is SimulationConflict => item !== null)
-    .sort((left, right) => right.severity - left.severity || left.closestTime - right.closestTime);
-}
+const LATERAL_FILTER_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
+const SEVERITY_FILTER_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
 function formatUtcTime(utcValue: string, epochSeconds: number): string {
   const date = new Date(utcValue || epochSeconds * 1000);
@@ -280,7 +175,10 @@ function ConflictHistogramTooltip({ active, payload }: TooltipContentProps) {
 
 export default function SimulationConflictsPanel({
   refreshToken,
+  conflictViewEnabled,
   onClose,
+  onConflictViewEnabledChange,
+  onConflictsChange,
   onSelectConflict,
 }: SimulationConflictsPanelProps) {
   const [conflicts, setConflicts] = useState<SimulationConflict[]>([]);
@@ -288,6 +186,9 @@ export default function SimulationConflictsPanel({
   const [error, setError] = useState<string | null>(null);
   const [manualRefreshToken, setManualRefreshToken] = useState(0);
   const [visibleConflictCount, setVisibleConflictCount] = useState(DISCLOSURE_INCREMENT);
+  const [callsignQuery, setCallsignQuery] = useState("");
+  const [lateralFilter, setLateralFilter] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("");
   const worstConflict = useMemo(() => conflicts[0] ?? null, [conflicts]);
   const closestConflict = useMemo(
     () =>
@@ -298,13 +199,37 @@ export default function SimulationConflictsPanel({
         : null,
     [conflicts],
   );
+  const filteredConflicts = useMemo(() => {
+    const normalizedQuery = callsignQuery.trim().toLowerCase();
+    const lateralLimit = lateralFilter ? Number(lateralFilter) : null;
+    const severityLimit = severityFilter ? Number(severityFilter) / 100 : null;
+
+    return conflicts.filter((conflict) => {
+      const matchesCallsign =
+        normalizedQuery.length === 0 ||
+        conflict.flightA.flightNumber.toLowerCase().includes(normalizedQuery) ||
+        conflict.flightB.flightNumber.toLowerCase().includes(normalizedQuery);
+      const matchesLateral = lateralLimit === null || conflict.lateralDistanceNmi < lateralLimit;
+      const matchesSeverity = severityLimit === null || conflict.severity < severityLimit;
+
+      return matchesCallsign && matchesLateral && matchesSeverity;
+    });
+  }, [callsignQuery, conflicts, lateralFilter, severityFilter]);
   const visibleConflicts = useMemo(
-    () => conflicts.slice(0, visibleConflictCount),
-    [conflicts, visibleConflictCount],
+    () => filteredConflicts.slice(0, visibleConflictCount),
+    [filteredConflicts, visibleConflictCount],
   );
-  const hiddenConflictCount = Math.max(0, conflicts.length - visibleConflicts.length);
+  const hiddenConflictCount = Math.max(0, filteredConflicts.length - visibleConflicts.length);
   const severityHistogramData = useMemo(() => buildSeverityHistogram(conflicts), [conflicts]);
   const lateralHistogramData = useMemo(() => buildLateralHistogram(conflicts), [conflicts]);
+
+  function resetVisibleConflicts() {
+    setVisibleConflictCount(DISCLOSURE_INCREMENT);
+  }
+
+  useEffect(() => {
+    return () => onConflictsChange?.([]);
+  }, [onConflictsChange]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -324,7 +249,9 @@ export default function SimulationConflictsPanel({
         }
 
         const payload = await response.json();
-        setConflicts(parseConflicts(payload));
+        const parsedConflicts = parseSimulationConflicts(payload);
+        setConflicts(parsedConflicts);
+        onConflictsChange?.(parsedConflicts);
         setVisibleConflictCount(DISCLOSURE_INCREMENT);
       } catch (loadError) {
         if (controller.signal.aborted) {
@@ -341,7 +268,7 @@ export default function SimulationConflictsPanel({
     void loadConflicts();
 
     return () => controller.abort();
-  }, [manualRefreshToken, refreshToken]);
+  }, [manualRefreshToken, onConflictsChange, refreshToken]);
 
   function selectConflict(conflict: SimulationConflict) {
     onSelectConflict({
@@ -389,6 +316,19 @@ export default function SimulationConflictsPanel({
 
       {error ? <p className="conflict-error">{error}</p> : null}
       {loading && conflicts.length === 0 && !error ? <p className="conflict-loading">Loading conflict check...</p> : null}
+
+      <label className="conflict-view-control">
+        <span className="conflict-view-label">Conflict view</span>
+        <span className="conflict-view-switch-wrap">
+          <input
+            type="checkbox"
+            className="conflict-view-input"
+            checked={conflictViewEnabled}
+            onChange={(event) => onConflictViewEnabledChange(event.currentTarget.checked)}
+          />
+          <span className="conflict-view-switch" aria-hidden="true" />
+        </span>
+      </label>
 
       {conflicts.length > 0 ? (
         <>
@@ -471,6 +411,64 @@ export default function SimulationConflictsPanel({
             </div>
           </div>
 
+          <div className="conflict-table-filters" role="search" aria-label="Filter conflict table">
+            <label className="conflict-filter-field conflict-filter-search">
+              <span>Callsign</span>
+              <input
+                type="search"
+                value={callsignQuery}
+                aria-label="Search conflict callsigns"
+                placeholder="Search callsign"
+                onChange={(event) => {
+                  resetVisibleConflicts();
+                  setCallsignQuery(event.currentTarget.value);
+                }}
+              />
+            </label>
+            <label className="conflict-filter-field">
+              <span>Lateral</span>
+              <select
+                value={lateralFilter}
+                aria-label="Filter by lateral distance"
+                onChange={(event) => {
+                  resetVisibleConflicts();
+                  setLateralFilter(event.currentTarget.value);
+                }}
+              >
+                <option value="">All</option>
+                {LATERAL_FILTER_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    &lt;{value}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="conflict-filter-field">
+              <span>Severity</span>
+              <select
+                value={severityFilter}
+                aria-label="Filter by severity"
+                onChange={(event) => {
+                  resetVisibleConflicts();
+                  setSeverityFilter(event.currentTarget.value);
+                }}
+              >
+                <option value="">All</option>
+                {SEVERITY_FILTER_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    &lt;{value}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {filteredConflicts.length !== conflicts.length ? (
+            <div className="conflict-filter-result-count">
+              Showing {filteredConflicts.length} of {conflicts.length}
+            </div>
+          ) : null}
+
           <table className="conflicts-table" aria-label="Arrival-pair conflicts">
             <thead>
               <tr>
@@ -504,11 +502,39 @@ export default function SimulationConflictsPanel({
                         <span>vs</span>
                         <strong>{conflict.flightB.flightNumber}</strong>
                       </span>
-                      <span className="conflict-pair-sub">
-                        {getRunwayPairLabel(conflict)} · {formatUtcTime(conflict.closestTimeUtc, conflict.closestTime)} · {formatDuration(conflict.startTime, conflict.endTime)}
-                      </span>
-                      <span className="conflict-pair-sub">
-                        {formatFeet(conflict.verticalSeparationFt)} vertical · {conflict.confidence}
+                      <span className="conflict-detail-grid">
+                        <span
+                          className="conflict-detail-chip"
+                          aria-label={`Runways ${getRunwayPairLabel(conflict)}`}
+                          title="Runways"
+                        >
+                          <PlaneLanding aria-hidden="true" />
+                          <span>{getRunwayPairLabel(conflict)}</span>
+                        </span>
+                        <span
+                          className="conflict-detail-chip"
+                          aria-label={`Closest time ${formatUtcTime(conflict.closestTimeUtc, conflict.closestTime)}`}
+                          title="Closest time"
+                        >
+                          <Clock3 aria-hidden="true" />
+                          <span>{formatUtcTime(conflict.closestTimeUtc, conflict.closestTime)}</span>
+                        </span>
+                        <span
+                          className="conflict-detail-chip"
+                          aria-label={`Duration ${formatDuration(conflict.startTime, conflict.endTime)}`}
+                          title="Duration"
+                        >
+                          <Timer aria-hidden="true" />
+                          <span>{formatDuration(conflict.startTime, conflict.endTime)}</span>
+                        </span>
+                        <span
+                          className="conflict-detail-chip"
+                          aria-label={`Vertical separation ${formatFeet(conflict.verticalSeparationFt)}`}
+                          title="Vertical separation"
+                        >
+                          <ArrowUpDown aria-hidden="true" />
+                          <span>{formatFeet(conflict.verticalSeparationFt)}</span>
+                        </span>
                       </span>
                     </td>
                     <td>
@@ -526,13 +552,17 @@ export default function SimulationConflictsPanel({
             </tbody>
           </table>
 
+          {filteredConflicts.length === 0 ? (
+            <p className="conflict-empty">No conflicts match the current filters.</p>
+          ) : null}
+
           {hiddenConflictCount > 0 ? (
             <button
               type="button"
               className="simulation-show-more-button"
               onClick={() =>
                 setVisibleConflictCount((count) =>
-                  Math.min(count + DISCLOSURE_INCREMENT, conflicts.length),
+                  Math.min(count + DISCLOSURE_INCREMENT, filteredConflicts.length),
                 )
               }
             >

@@ -34,6 +34,7 @@ type MissingDistanceHistogramBin = {
 const FEASIBILITY_ENDPOINT = "/tools/evals/feasibility";
 const HISTOGRAM_BIN_WIDTHS = [0.25, 0.5, 1, 2, 5, 10, 20, 50];
 const DISCLOSURE_INCREMENT = 50;
+const MISSING_DISTANCE_FILTER_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -148,12 +149,28 @@ export default function SimulationFeasibilityPanel({
   const [error, setError] = useState<string | null>(null);
   const [manualRefreshToken, setManualRefreshToken] = useState(0);
   const [visibleIssueCount, setVisibleIssueCount] = useState(DISCLOSURE_INCREMENT);
+  const [flightNumberQuery, setFlightNumberQuery] = useState("");
+  const [missingDistanceFilter, setMissingDistanceFilter] = useState("");
   const histogramData = useMemo(() => buildMissingDistanceHistogram(issues), [issues]);
+  const filteredIssues = useMemo(() => {
+    const normalizedQuery = flightNumberQuery.trim().toLowerCase();
+    const missingDistanceLimit = missingDistanceFilter ? Number(missingDistanceFilter) : null;
+
+    return issues.filter((issue) => {
+      const matchesFlightNumber =
+        normalizedQuery.length === 0 ||
+        issue.flightNumber.toLowerCase().includes(normalizedQuery);
+      const matchesMissingDistance =
+        missingDistanceLimit === null || issue.missingDistanceNmi < missingDistanceLimit;
+
+      return matchesFlightNumber && matchesMissingDistance;
+    });
+  }, [flightNumberQuery, issues, missingDistanceFilter]);
   const visibleIssues = useMemo(
-    () => issues.slice(0, visibleIssueCount),
-    [issues, visibleIssueCount],
+    () => filteredIssues.slice(0, visibleIssueCount),
+    [filteredIssues, visibleIssueCount],
   );
-  const hiddenIssueCount = Math.max(0, issues.length - visibleIssues.length);
+  const hiddenIssueCount = Math.max(0, filteredIssues.length - visibleIssues.length);
   const largestMissingDistanceNmi = useMemo(
     () =>
       issues.length > 0
@@ -161,6 +178,10 @@ export default function SimulationFeasibilityPanel({
         : 0,
     [issues],
   );
+
+  function resetVisibleIssues() {
+    setVisibleIssueCount(DISCLOSURE_INCREMENT);
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -279,6 +300,46 @@ export default function SimulationFeasibilityPanel({
             </div>
           </div>
 
+          <div className="feasibility-table-filters" role="search" aria-label="Filter feasibility table">
+            <label className="feasibility-filter-field feasibility-filter-search">
+              <span>Flight</span>
+              <input
+                type="search"
+                value={flightNumberQuery}
+                aria-label="Search feasibility flight numbers"
+                placeholder="Search flight"
+                onChange={(event) => {
+                  resetVisibleIssues();
+                  setFlightNumberQuery(event.currentTarget.value);
+                }}
+              />
+            </label>
+            <label className="feasibility-filter-field">
+              <span>Missing</span>
+              <select
+                value={missingDistanceFilter}
+                aria-label="Filter by missing nautical miles"
+                onChange={(event) => {
+                  resetVisibleIssues();
+                  setMissingDistanceFilter(event.currentTarget.value);
+                }}
+              >
+                <option value="">All</option>
+                {MISSING_DISTANCE_FILTER_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    &lt;{value}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {filteredIssues.length !== issues.length ? (
+            <div className="feasibility-filter-result-count">
+              Showing {filteredIssues.length} of {issues.length}
+            </div>
+          ) : null}
+
           <table className="feasibility-table" aria-label="Infeasible arrival flights">
             <thead>
               <tr>
@@ -305,13 +366,17 @@ export default function SimulationFeasibilityPanel({
             </tbody>
           </table>
 
+          {filteredIssues.length === 0 ? (
+            <p className="feasibility-empty">No infeasible arrivals match the current filters.</p>
+          ) : null}
+
           {hiddenIssueCount > 0 ? (
             <button
               type="button"
               className="simulation-show-more-button"
               onClick={() =>
                 setVisibleIssueCount((count) =>
-                  Math.min(count + DISCLOSURE_INCREMENT, issues.length),
+                  Math.min(count + DISCLOSURE_INCREMENT, filteredIssues.length),
                 )
               }
             >

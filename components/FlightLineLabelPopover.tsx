@@ -25,12 +25,7 @@ export default function FlightLineLabelPopover({
   onSelect,
   onClose,
 }: FlightLineLabelPopoverProps) {
-  const [mounted, setMounted] = useState(false);
   const [position, setPosition] = useState<Position | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!open || !anchor) {
@@ -72,7 +67,7 @@ export default function FlightLineLabelPopover({
     };
   }, [onClose, open]);
 
-  if (!mounted || !open || !position) {
+  if (!open || !position) {
     return null;
   }
 

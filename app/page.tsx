@@ -16,6 +16,10 @@ import { DEFAULT_FLIGHT_OPERATION_VISIBILITY } from "@/components/adsb-replay/fl
 import { useAdsbReplay } from "@/components/adsb-replay/useAdsbReplay";
 import { useSimulationReplay } from "@/components/adsb-replay/useSimulationReplay";
 import type { ReplayMode } from "@/components/adsb-replay/types";
+import type {
+  SimulationConflict,
+  SimulationConflictPreviewConfig,
+} from "@/components/simulation-conflict-preview";
 
 export default function Page() {
   const [replayMode, setReplayMode] = useState<ReplayMode>("adsb");
@@ -34,6 +38,8 @@ export default function Page() {
   const [selectedSimulationFlightId, setSelectedSimulationFlightId] = useState<string | null>(null);
   const [showFeasibilityPanel, setShowFeasibilityPanel] = useState(false);
   const [showConflictsPanel, setShowConflictsPanel] = useState(false);
+  const [conflictViewEnabled, setConflictViewEnabled] = useState(false);
+  const [simulationConflicts, setSimulationConflicts] = useState<SimulationConflict[]>([]);
   const [simulationEvalRefreshToken, setSimulationEvalRefreshToken] = useState(0);
   const [flightAltitudeRange, setFlightAltitudeRange] = useState(DEFAULT_FLIGHT_ALTITUDE_RANGE);
   const [flightOperationVisibility, setFlightOperationVisibility] = useState(DEFAULT_FLIGHT_OPERATION_VISIBILITY);
@@ -43,6 +49,13 @@ export default function Page() {
   const setActiveReplayTime = replayMode === "simulation" ? setSimulationReplayTime : setAdsbReplayTime;
 
   const measureSegments = useMemo(() => buildMeasureSegments(rulerPoints), [rulerPoints]);
+  const simulationConflictPreview = useMemo<SimulationConflictPreviewConfig>(
+    () => ({
+      enabled: replayMode === "simulation" && showConflictsPanel && conflictViewEnabled,
+      conflicts: simulationConflicts,
+    }),
+    [conflictViewEnabled, replayMode, showConflictsPanel, simulationConflicts],
+  );
   const effectiveReplayTime =
     (replayMode === "simulation" ? simulationReplayTime : adsbReplayTime) ||
     activeReplay.metadata?.minTime ||
@@ -112,6 +125,7 @@ export default function Page() {
   }, [deselectAdsbFlight]);
   const closeConflictsPanel = useCallback(() => {
     setShowConflictsPanel(false);
+    setConflictViewEnabled(false);
   }, []);
   const selectFixFromFlightDetails = useCallback(
     (fixName: string) => {
@@ -308,6 +322,7 @@ export default function Page() {
         selectedReplayFlightId={replayMode === "simulation" ? selectedSimulationFlightId : selectedAdsbFlightId}
         flightAltitudeRange={flightAltitudeRange}
         flightOperationVisibility={flightOperationVisibility}
+        simulationConflictPreview={simulationConflictPreview}
       />
 
       <div className="parent-pane page-pane page-pane-left flight-details-pane" aria-label="Left panels">
@@ -336,7 +351,10 @@ export default function Page() {
         {replayMode === "simulation" && showConflictsPanel ? (
           <SimulationConflictsPanel
             refreshToken={simulationEvalRefreshToken}
+            conflictViewEnabled={conflictViewEnabled}
             onClose={closeConflictsPanel}
+            onConflictViewEnabledChange={setConflictViewEnabled}
+            onConflictsChange={setSimulationConflicts}
             onSelectConflict={selectSimulationConflict}
           />
         ) : null}

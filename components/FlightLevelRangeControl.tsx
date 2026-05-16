@@ -28,16 +28,36 @@ export default function FlightLevelRangeControl({
   onCommit,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [from, setFrom] = useState(() => clamp(Math.round(fromFL), minFL, maxFL));
-  const [to, setTo] = useState(() => clamp(Math.round(toFL), minFL, maxFL));
+  const controlledFrom = clamp(Math.round(fromFL), minFL, maxFL);
+  const controlledTo = clamp(Math.round(toFL), minFL, maxFL);
+  const [range, setRange] = useState(() => ({
+    from: controlledFrom,
+    to: controlledTo,
+    controlledFrom,
+    controlledTo,
+    minFL,
+    maxFL,
+  }));
+  let from = range.from;
+  let to = range.to;
 
-  // Keep internal state synced with props
-  useEffect(() => {
-    setFrom(clamp(Math.round(fromFL), minFL, maxFL));
-  }, [fromFL, minFL, maxFL]);
-  useEffect(() => {
-    setTo(clamp(Math.round(toFL), minFL, maxFL));
-  }, [toFL, minFL, maxFL]);
+  if (
+    range.controlledFrom !== controlledFrom ||
+    range.controlledTo !== controlledTo ||
+    range.minFL !== minFL ||
+    range.maxFL !== maxFL
+  ) {
+    from = controlledFrom;
+    to = controlledTo;
+    setRange({
+      from,
+      to,
+      controlledFrom,
+      controlledTo,
+      minFL,
+      maxFL,
+    });
+  }
 
   useEffect(() => {
     onChange?.(from, to);
@@ -91,15 +111,18 @@ export default function FlightLevelRangeControl({
 
     if (st.mode === "left") {
       const nf = clamp(st.startFrom + d, minFL, to);
-      setFrom(nf);
+      setRange((current) => ({ ...current, from: nf }));
     } else if (st.mode === "right") {
       const nt = clamp(st.startTo + d, from, maxFL);
-      setTo(nt);
+      setRange((current) => ({ ...current, to: nt }));
     } else if (st.mode === "range") {
       let shift = d;
       shift = clamp(shift, minFL - st.startFrom, maxFL - st.startTo);
-      setFrom(clamp(st.startFrom + shift, minFL, maxFL));
-      setTo(clamp(st.startTo + shift, minFL, maxFL));
+      setRange((current) => ({
+        ...current,
+        from: clamp(st.startFrom + shift, minFL, maxFL),
+        to: clamp(st.startTo + shift, minFL, maxFL),
+      }));
     }
   };
 
@@ -125,11 +148,11 @@ export default function FlightLevelRangeControl({
     const clickedFL = quantize(minFL + (x / rect.width) * span);
     if (Math.abs(clickedFL - from) < Math.abs(clickedFL - to)) {
       const nf = Math.min(clickedFL, to);
-      setFrom(nf);
+      setRange((current) => ({ ...current, from: nf }));
       onCommit?.(nf, to);
     } else {
       const nt = Math.max(clickedFL, from);
-      setTo(nt);
+      setRange((current) => ({ ...current, to: nt }));
       onCommit?.(from, nt);
     }
   };

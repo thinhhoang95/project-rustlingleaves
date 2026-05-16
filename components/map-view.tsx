@@ -26,6 +26,7 @@ import {
 } from "@/components/adsb-replay/flight-line-colors";
 import { interpolateFlightAtTime } from "@/components/adsb-replay/interpolate";
 import type { ReplayFlight, ReplayMode, ReplaySnapshot } from "@/components/adsb-replay/types";
+import type { SimulationConflictPreviewConfig } from "@/components/simulation-conflict-preview";
 
 export type { MapCoordinate, MapSearchItem, MapSelectionTarget } from "./map-view-types";
 
@@ -46,6 +47,7 @@ type MapViewProps = {
   selectedReplayFlightId?: string | null;
   flightAltitudeRange?: FlightAltitudeRange;
   flightOperationVisibility?: FlightOperationVisibility;
+  simulationConflictPreview?: SimulationConflictPreviewConfig;
 };
 
 const BASE_MAP_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
@@ -69,6 +71,7 @@ export default function MapView({
   selectedReplayFlightId = null,
   flightAltitudeRange = DEFAULT_FLIGHT_ALTITUDE_RANGE,
   flightOperationVisibility = DEFAULT_FLIGHT_OPERATION_VISIBILITY,
+  simulationConflictPreview,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -84,6 +87,7 @@ export default function MapView({
   const selectedReplayFlightIdRef = useRef(selectedReplayFlightId);
   const flightAltitudeRangeRef = useRef(flightAltitudeRange);
   const flightOperationVisibilityRef = useRef(flightOperationVisibility);
+  const simulationConflictPreviewRef = useRef(simulationConflictPreview);
   const searchItemsRef = useRef<FixSearchItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -118,7 +122,16 @@ export default function MapView({
     selectedReplayFlightIdRef.current = selectedReplayFlightId;
     flightAltitudeRangeRef.current = flightAltitudeRange;
     flightOperationVisibilityRef.current = flightOperationVisibility;
-  }, [flightAltitudeRange, flightOperationVisibility, replayFlights, replayMode, replaySnapshot, selectedReplayFlightId]);
+    simulationConflictPreviewRef.current = simulationConflictPreview;
+  }, [
+    flightAltitudeRange,
+    flightOperationVisibility,
+    replayFlights,
+    replayMode,
+    replaySnapshot,
+    selectedReplayFlightId,
+    simulationConflictPreview,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,6 +189,7 @@ export default function MapView({
           selectedReplayFlightIdRef.current,
           flightAltitudeRangeRef.current,
           flightOperationVisibilityRef.current,
+          simulationConflictPreviewRef.current,
         );
       });
 
@@ -228,6 +242,7 @@ export default function MapView({
             selectedReplayFlightIdRef.current,
             flightAltitudeRangeRef.current,
             flightOperationVisibilityRef.current,
+            simulationConflictPreviewRef.current,
           );
           fitDataBounds(map, maplibregl, linkData.waypoints, linkData.vors, runways);
         };
@@ -297,8 +312,17 @@ export default function MapView({
       selectedReplayFlightId,
       flightAltitudeRange,
       flightOperationVisibility,
+      simulationConflictPreview,
     );
-  }, [flightAltitudeRange, flightOperationVisibility, replayFlights, replayMode, replaySnapshot, selectedReplayFlightId]);
+  }, [
+    flightAltitudeRange,
+    flightOperationVisibility,
+    replayFlights,
+    replayMode,
+    replaySnapshot,
+    selectedReplayFlightId,
+    simulationConflictPreview,
+  ]);
 
   useEffect(() => {
     if (!selectedSearchTarget) {

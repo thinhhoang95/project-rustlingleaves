@@ -10,6 +10,7 @@
     "lint": "node ./node_modules/eslint/bin/eslint.js ."
   },
   "dependencies": {
+    "lucide-react": "^1.16.0",
     "maplibre-gl": "5.24.0",
     "next": "16.2.4",
     "react": "19.2.5",

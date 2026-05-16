@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { APP_INFO } from "@/app/app-info";
 import type { ReplayMode } from "@/components/adsb-replay/types";
 import EvalToolsMenu from "@/components/EvalToolsMenu";
 import ReplayModeSwitch from "@/components/view-options/ReplayModeSwitch";
@@ -39,7 +40,10 @@ export default function Header({
 }: HeaderProps) {
   const [query, setQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [appMenuOpen, setAppMenuOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const blurTimeoutRef = useRef<number | null>(null);
+  const appMenuRef = useRef<HTMLDivElement | null>(null);
   const normalizedQuery = query.trim().toUpperCase();
   const results = useMemo(() => {
     if (!normalizedQuery) {
@@ -85,10 +89,66 @@ export default function Header({
     setIsSearchFocused(false);
   }
 
+  useEffect(() => {
+    if (!appMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!appMenuRef.current?.contains(event.target as Node)) {
+        setAppMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [appMenuOpen]);
+
+  useEffect(() => {
+    if (!aboutOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setAboutOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [aboutOpen]);
+
   return (
     <header className="app-header">
-      <div className="app-title">
-        <h1>Approach Claw</h1>
+      <div className="app-title" ref={appMenuRef}>
+        <button
+          type="button"
+          className="app-title-button"
+          aria-expanded={appMenuOpen}
+          aria-haspopup="menu"
+          onClick={() => setAppMenuOpen((open) => !open)}
+        >
+          <span>{APP_INFO.name}</span>
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M5.5 7.25 10 11.75l4.5-4.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        {appMenuOpen ? (
+          <div className="app-title-context-menu" role="menu">
+            <button
+              type="button"
+              className="mode-switch-menu-item"
+              role="menuitem"
+              onClick={() => {
+                setAppMenuOpen(false);
+                setAboutOpen(true);
+              }}
+            >
+              About
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <nav aria-label="Primary navigation" className="app-nav">
@@ -99,10 +159,12 @@ export default function Header({
           onInvalidateSimulationCache={onInvalidateSimulationCache}
         />
 
-        <EvalToolsMenu
-          onOpenFeasibility={onOpenFeasibilityPanel}
-          onOpenConflicts={onOpenConflictsPanel}
-        />
+        {replayMode === "simulation" ? (
+          <EvalToolsMenu
+            onOpenFeasibility={onOpenFeasibilityPanel}
+            onOpenConflicts={onOpenConflictsPanel}
+          />
+        ) : null}
 
         <div className="fix-search" role="search">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="fix-search-icon">
@@ -157,6 +219,60 @@ export default function Header({
           </svg>
         </button>
       </nav>
+
+      {aboutOpen ? (
+        <div
+          className="about-modal-backdrop"
+          role="presentation"
+          onPointerDown={(event) => {
+            if (event.currentTarget === event.target) {
+              setAboutOpen(false);
+            }
+          }}
+        >
+          <section
+            className="about-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="about-modal-title"
+          >
+            <button
+              type="button"
+              className="about-modal-close"
+              aria-label="Close About dialog"
+              onClick={() => setAboutOpen(false)}
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+            <div className="about-modal-header">
+              <p className="about-modal-kicker">About</p>
+              <h2 id="about-modal-title">{APP_INFO.name}</h2>
+            </div>
+            <dl className="about-modal-details">
+              <div>
+                <dt>Version</dt>
+                <dd>{APP_INFO.version}</dd>
+              </div>
+              <div>
+                <dt>Release date</dt>
+                <dd>{APP_INFO.releaseDate}</dd>
+              </div>
+              <div>
+                <dt>Author</dt>
+                <dd>{APP_INFO.author.name}</dd>
+              </div>
+              <div>
+                <dt>Email</dt>
+                <dd>
+                  <a href={`mailto:${APP_INFO.author.email}`}>{APP_INFO.author.email}</a>
+                </dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+      ) : null}
     </header>
   );
 }

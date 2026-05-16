@@ -18,6 +18,10 @@ import {
   isAircraftInAltitudeRange,
   type FlightAltitudeRange,
 } from "@/components/adsb-replay/flight-altitude-filter";
+import {
+  updateSimulationConflictPreviewLayers,
+  type SimulationConflictPreviewConfig,
+} from "@/components/simulation-conflict-preview";
 import { buildRulerCollection } from "./map-view-data";
 import type {
   AirportPointCollection,
@@ -538,6 +542,7 @@ export function updateAdsbReplayLayers(
   selectedReplayFlightId: string | null = null,
   flightAltitudeRange: FlightAltitudeRange = DEFAULT_FLIGHT_ALTITUDE_RANGE,
   flightOperationVisibility: FlightOperationVisibility = DEFAULT_FLIGHT_OPERATION_VISIBILITY,
+  simulationConflictPreview?: SimulationConflictPreviewConfig,
 ) {
   const visible = replayMode === "adsb" || replayMode === "simulation";
   addAdsbReplayLayers(map, visible);
@@ -560,6 +565,15 @@ export function updateAdsbReplayLayers(
     visible
       ? buildVisibleFlightLineCollection(replayFlights, visibleAircraft, selectedReplayFlightId)
       : emptyFlightLineCollection(),
+  );
+
+  updateSimulationConflictPreviewLayers(
+    map,
+    visible && replayMode === "simulation" && simulationConflictPreview?.enabled === true,
+    visibleAircraft,
+    simulationConflictPreview?.conflicts ?? [],
+    replaySnapshot.time,
+    AIRCRAFT_LAYER_ID,
   );
 
   setLayerVisibility(map, FLIGHT_LINE_LAYER_ID, visible);

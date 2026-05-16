@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { APP_INFO } from "@/app/app-info";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Approach Claw",
+  title: APP_INFO.name,
   description: "Minimal arrivals view with waypoint rendering",
 };
 
