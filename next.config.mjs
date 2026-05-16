@@ -16,6 +16,10 @@ const nextConfig = {
         source: "/tools/evals/feasibility",
         destination: `${scenarioApiBaseUrl}/tools/evals/feasibility`,
       },
+      {
+        source: "/tools/evals/conflicts",
+        destination: `${scenarioApiBaseUrl}/tools/evals/conflicts`,
+      },
     ];
   },
 };

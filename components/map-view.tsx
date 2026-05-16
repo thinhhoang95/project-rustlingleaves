@@ -15,11 +15,11 @@ import {
   updateAdsbReplayLayers,
   updateRulerLayers,
 } from "./map-view-layers";
-import type { MapCoordinate, MapSearchItem } from "./map-view-types";
+import type { MapCoordinate, MapSearchItem, MapSelectionTarget } from "./map-view-types";
 import { interpolateFlightAtTime } from "@/components/adsb-replay/interpolate";
 import type { ReplayFlight, ReplayMode, ReplaySnapshot } from "@/components/adsb-replay/types";
 
-export type { MapCoordinate, MapSearchItem } from "./map-view-types";
+export type { MapCoordinate, MapSearchItem, MapSelectionTarget } from "./map-view-types";
 
 type FixSearchItem = Extract<MapSearchItem, { type: "Waypoint" | "VOR" | "Runway" }>;
 
@@ -29,7 +29,7 @@ type MapViewProps = {
   rulerActive: boolean;
   rulerPoints: MapCoordinate[];
   onAddRulerPoint: (point: MapCoordinate) => void;
-  selectedSearchTarget: { id: string; requestId: number; time?: number } | null;
+  selectedSearchTarget: MapSelectionTarget | null;
   onSelectReplayFlight?: (flightId: string) => void;
   onSearchItemsChange: (items: MapSearchItem[]) => void;
   replayMode: ReplayMode;
@@ -279,6 +279,17 @@ export default function MapView({
 
     const map = mapRef.current;
     if (!map) {
+      return;
+    }
+
+    if (selectedSearchTarget.coordinates) {
+      map.flyTo({
+        center: selectedSearchTarget.coordinates,
+        zoom: Math.max(map.getZoom(), selectedSearchTarget.zoom ?? 10),
+        speed: 0.9,
+        curve: 1.25,
+        essential: true,
+      });
       return;
     }
 

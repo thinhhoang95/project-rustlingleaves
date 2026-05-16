@@ -1,13 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import AdsbFlightDetailsPanel from "@/components/AdsbFlightDetailsPanel";
 import Header from "@/components/Header";
 import ChatPanel from "@/components/ChatPanel";
 import MeasurePanel, { buildMeasureSegments } from "@/components/MeasurePanel";
 import MapView from "@/components/map-view";
+import SimulationConflictsPanel, { type SimulationConflictSelection } from "@/components/SimulationConflictsPanel";
 import SimulationFeasibilityPanel from "@/components/SimulationFeasibilityPanel";
 import SimulationFlightDetailsPanel from "@/components/SimulationFlightDetailsPanel";
-import type { MapCoordinate, MapSearchItem } from "@/components/map-view-types";
+import type { MapCoordinate, MapSearchItem, MapSelectionTarget } from "@/components/map-view-types";
 import ViewOptionsControl from "@/components/ViewOptionsControl";
 import { useAdsbReplay } from "@/components/adsb-replay/useAdsbReplay";
 import { useSimulationReplay } from "@/components/adsb-replay/useSimulationReplay";
@@ -25,9 +27,11 @@ export default function Page() {
   const [rulerActive, setRulerActive] = useState(false);
   const [rulerPoints, setRulerPoints] = useState<MapCoordinate[]>([]);
   const [searchItems, setSearchItems] = useState<MapSearchItem[]>([]);
-  const [selectedSearchTarget, setSelectedSearchTarget] = useState<{ id: string; requestId: number; time?: number } | null>(null);
+  const [selectedSearchTarget, setSelectedSearchTarget] = useState<MapSelectionTarget | null>(null);
+  const [selectedAdsbFlightId, setSelectedAdsbFlightId] = useState<string | null>(null);
   const [selectedSimulationFlightId, setSelectedSimulationFlightId] = useState<string | null>(null);
   const [showFeasibilityPanel, setShowFeasibilityPanel] = useState(false);
+  const [showConflictsPanel, setShowConflictsPanel] = useState(false);
   const [simulationEvalRefreshToken, setSimulationEvalRefreshToken] = useState(0);
   const adsbReplay = useAdsbReplay(adsbReplayTime);
   const simulationReplay = useSimulationReplay(simulationReplayTime);
@@ -59,11 +63,20 @@ export default function Page() {
         : null,
     [replayMode, selectedSimulationFlightId, simulationReplay.flights],
   );
-  const selectMapTarget = useCallback((itemId: string, time?: number) => {
+  const selectedAdsbFlight = useMemo(
+    () =>
+      replayMode === "adsb" && selectedAdsbFlightId
+        ? adsbReplay.flights.find((flight) => flight.id === selectedAdsbFlightId) ?? null
+        : null,
+    [adsbReplay.flights, replayMode, selectedAdsbFlightId],
+  );
+  const selectMapTarget = useCallback((itemId: string, time?: number, coordinates?: MapCoordinate, zoom?: number) => {
     setSelectedSearchTarget((previousTarget) => ({
       id: itemId,
       requestId: (previousTarget?.requestId ?? 0) + 1,
       time,
+      coordinates,
+      zoom,
     }));
   }, []);
   const selectSimulationFlight = useCallback((flightId: string) => {
@@ -72,13 +85,29 @@ export default function Page() {
   const deselectSimulationFlight = useCallback(() => {
     setSelectedSimulationFlightId(null);
   }, []);
+  const selectAdsbFlight = useCallback((flightId: string) => {
+    setSelectedAdsbFlightId(flightId);
+  }, []);
+  const deselectAdsbFlight = useCallback(() => {
+    setSelectedAdsbFlightId(null);
+  }, []);
   const openFeasibilityPanel = useCallback(() => {
     setReplayMode("simulation");
     setReplayPlaying(false);
+    deselectAdsbFlight();
     setShowFeasibilityPanel(true);
-  }, []);
+  }, [deselectAdsbFlight]);
   const closeFeasibilityPanel = useCallback(() => {
     setShowFeasibilityPanel(false);
+  }, []);
+  const openConflictsPanel = useCallback(() => {
+    setReplayMode("simulation");
+    setReplayPlaying(false);
+    deselectAdsbFlight();
+    setShowConflictsPanel(true);
+  }, [deselectAdsbFlight]);
+  const closeConflictsPanel = useCallback(() => {
+    setShowConflictsPanel(false);
   }, []);
   const selectFixFromFlightDetails = useCallback(
     (fixName: string) => {
@@ -112,6 +141,7 @@ export default function Page() {
 
       setReplayMode("simulation");
       setReplayPlaying(false);
+      deselectAdsbFlight();
       selectSimulationFlight(flightId);
 
       if (targetTime !== undefined && targetTime !== simulationReplayTime) {
@@ -120,7 +150,17 @@ export default function Page() {
 
       selectMapTarget(`flight:${flightId}`, targetTime);
     },
-    [selectMapTarget, selectSimulationFlight, simulationReplay.flights, simulationReplayTime],
+    [deselectAdsbFlight, selectMapTarget, selectSimulationFlight, simulationReplay.flights, simulationReplayTime],
+  );
+  const selectSimulationConflict = useCallback(
+    (selection: SimulationConflictSelection) => {
+      setReplayMode("simulation");
+      setReplayPlaying(false);
+      deselectAdsbFlight();
+      setSimulationReplayTime(selection.time);
+      selectMapTarget(`conflict:${selection.conflictId}`, selection.time, selection.coordinate, 10);
+    },
+    [deselectAdsbFlight, selectMapTarget],
   );
 
   useEffect(() => {
@@ -190,20 +230,26 @@ export default function Page() {
         onReplayModeChange={(mode) => {
           setReplayMode(mode);
           setReplayPlaying(false);
-          if (mode !== "simulation") {
+          if (mode === "simulation") {
+            deselectAdsbFlight();
+          } else {
             deselectSimulationFlight();
             closeFeasibilityPanel();
+            closeConflictsPanel();
           }
         }}
         onOpenFeasibilityPanel={openFeasibilityPanel}
+        onOpenConflictsPanel={openConflictsPanel}
         simulationCacheLoading={simulationReplay.loading || simulationReplay.invalidating}
         onInvalidateSimulationCache={() => {
           setReplayMode("simulation");
           setReplayPlaying(false);
           setSimulationReplayTime(0);
           setSimulationEvalRefreshToken((token) => token + 1);
+          deselectAdsbFlight();
           deselectSimulationFlight();
           closeFeasibilityPanel();
+          closeConflictsPanel();
           void simulationReplay.invalidateCache();
         }}
         onSelectSearchItem={(itemId) => {
@@ -218,14 +264,17 @@ export default function Page() {
           if (item?.type === "Flight") {
             setReplayPlaying(false);
             if (replayMode === "simulation") {
+              deselectAdsbFlight();
               selectSimulationFlight(item.flightId);
             } else {
+              selectAdsbFlight(item.flightId);
               deselectSimulationFlight();
             }
             if (targetTime !== undefined && targetTime !== effectiveReplayTime) {
               setActiveReplayTime(targetTime);
             }
           } else {
+            deselectAdsbFlight();
             deselectSimulationFlight();
           }
 
@@ -241,17 +290,28 @@ export default function Page() {
         selectedSearchTarget={selectedSearchTarget}
         onSelectReplayFlight={(flightId) => {
           if (replayMode === "simulation") {
+            deselectAdsbFlight();
             selectSimulationFlight(flightId);
+          } else {
+            selectAdsbFlight(flightId);
+            deselectSimulationFlight();
           }
         }}
         onSearchItemsChange={setSearchItems}
         replayMode={replayMode}
         replayFlights={activeReplay.flights}
         replaySnapshot={activeReplay.snapshot}
-        selectedReplayFlightId={replayMode === "simulation" ? selectedSimulationFlightId : null}
+        selectedReplayFlightId={replayMode === "simulation" ? selectedSimulationFlightId : selectedAdsbFlightId}
       />
 
       <div className="parent-pane page-pane page-pane-left flight-details-pane" aria-label="Left panels">
+        {selectedAdsbFlight ? (
+          <AdsbFlightDetailsPanel
+            flight={selectedAdsbFlight}
+            currentReplayTime={effectiveReplayTime}
+            onClose={deselectAdsbFlight}
+          />
+        ) : null}
         {selectedSimulationFlight ? (
           <SimulationFlightDetailsPanel
             flight={selectedSimulationFlight}
@@ -265,6 +325,13 @@ export default function Page() {
             refreshToken={simulationEvalRefreshToken}
             onClose={closeFeasibilityPanel}
             onSelectFlight={selectSimulationFlightFromEval}
+          />
+        ) : null}
+        {replayMode === "simulation" && showConflictsPanel ? (
+          <SimulationConflictsPanel
+            refreshToken={simulationEvalRefreshToken}
+            onClose={closeConflictsPanel}
+            onSelectConflict={selectSimulationConflict}
           />
         ) : null}
       </div>

@@ -33,6 +33,7 @@ type MissingDistanceHistogramBin = {
 
 const FEASIBILITY_ENDPOINT = "/tools/evals/feasibility";
 const HISTOGRAM_BIN_WIDTHS = [0.25, 0.5, 1, 2, 5, 10, 20, 50];
+const DISCLOSURE_INCREMENT = 50;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -146,7 +147,20 @@ export default function SimulationFeasibilityPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [manualRefreshToken, setManualRefreshToken] = useState(0);
+  const [visibleIssueCount, setVisibleIssueCount] = useState(DISCLOSURE_INCREMENT);
   const histogramData = useMemo(() => buildMissingDistanceHistogram(issues), [issues]);
+  const visibleIssues = useMemo(
+    () => issues.slice(0, visibleIssueCount),
+    [issues, visibleIssueCount],
+  );
+  const hiddenIssueCount = Math.max(0, issues.length - visibleIssues.length);
+  const largestMissingDistanceNmi = useMemo(
+    () =>
+      issues.length > 0
+        ? Math.max(...issues.map((issue) => issue.missingDistanceNmi))
+        : 0,
+    [issues],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -167,6 +181,7 @@ export default function SimulationFeasibilityPanel({
 
         const payload = await response.json();
         setIssues(parseFeasibilityIssues(payload));
+        setVisibleIssueCount(DISCLOSURE_INCREMENT);
       } catch (loadError) {
         if (controller.signal.aborted) {
           return;
@@ -224,6 +239,13 @@ export default function SimulationFeasibilityPanel({
 
       {issues.length > 0 ? (
         <>
+          <div className="simulation-summary" aria-label="Feasibility summary">
+            <div>
+              <span>Largest missing</span>
+              <strong>{formatNauticalMiles(largestMissingDistanceNmi)}</strong>
+            </div>
+          </div>
+
           <div className="feasibility-chart-section">
             <div className="feasibility-chart-header">
               <span>Missing distance distribution</span>
@@ -265,7 +287,7 @@ export default function SimulationFeasibilityPanel({
               </tr>
             </thead>
             <tbody>
-              {issues.map((issue) => (
+              {visibleIssues.map((issue) => (
                 <tr key={issue.flightId}>
                   <td>
                     <button
@@ -282,6 +304,20 @@ export default function SimulationFeasibilityPanel({
               ))}
             </tbody>
           </table>
+
+          {hiddenIssueCount > 0 ? (
+            <button
+              type="button"
+              className="simulation-show-more-button"
+              onClick={() =>
+                setVisibleIssueCount((count) =>
+                  Math.min(count + DISCLOSURE_INCREMENT, issues.length),
+                )
+              }
+            >
+              Show more ({hiddenIssueCount} remaining)
+            </button>
+          ) : null}
         </>
       ) : null}
 

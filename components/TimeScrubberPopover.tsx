@@ -84,7 +84,7 @@ export default function TimeScrubberPopover({
         className="absolute -translate-x-1/2 -translate-y-full pointer-events-auto"
         style={{ top: position.top, left: position.left }}
       >
-        <div className="view-options">
+        <div className="view-options time-scrubber-popover">
           <div className="view-option-group">
             <span className="view-option-label">Time</span>
             <input

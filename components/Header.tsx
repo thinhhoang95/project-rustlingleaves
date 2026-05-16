@@ -20,6 +20,7 @@ type HeaderProps = {
   replayMode: ReplayMode;
   onReplayModeChange: (mode: ReplayMode) => void;
   onOpenFeasibilityPanel: () => void;
+  onOpenConflictsPanel: () => void;
   simulationCacheLoading: boolean;
   onInvalidateSimulationCache: () => void;
 };
@@ -32,6 +33,7 @@ export default function Header({
   replayMode,
   onReplayModeChange,
   onOpenFeasibilityPanel,
+  onOpenConflictsPanel,
   simulationCacheLoading,
   onInvalidateSimulationCache,
 }: HeaderProps) {
@@ -97,7 +99,10 @@ export default function Header({
           onInvalidateSimulationCache={onInvalidateSimulationCache}
         />
 
-        <EvalToolsMenu onOpenFeasibility={onOpenFeasibilityPanel} />
+        <EvalToolsMenu
+          onOpenFeasibility={onOpenFeasibilityPanel}
+          onOpenConflicts={onOpenConflictsPanel}
+        />
 
         <div className="fix-search" role="search">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="fix-search-icon">
