@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
-import { buildLinkData, buildSearchItems, fitDataBounds, parseRunwayInfoText } from "./map-view-data";
+import { buildLinkData, buildSearchItems, parseRunwayInfoText } from "./map-view-data";
 import {
   addAdsbReplayLayers,
   addLinkLayers,
@@ -51,6 +51,8 @@ type MapViewProps = {
 };
 
 const BASE_MAP_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+const KDFW_CENTER: MapCoordinate = [-97.04, 32.9];
+const KDFW_INITIAL_ZOOM = 8;
 
 function isMapStyleReady(map: MapLibreMap) {
   return map.isStyleLoaded() === true;
@@ -146,8 +148,8 @@ export default function MapView({
       const map = new maplibregl.Map({
         container: containerRef.current,
         style: BASE_MAP_STYLE,
-        center: [-97.04, 32.9],
-        zoom: 6.8,
+        center: KDFW_CENTER,
+        zoom: KDFW_INITIAL_ZOOM,
         fadeDuration: 0,
       });
 
@@ -244,7 +246,6 @@ export default function MapView({
             flightOperationVisibilityRef.current,
             simulationConflictPreviewRef.current,
           );
-          fitDataBounds(map, maplibregl, linkData.waypoints, linkData.vors, runways);
         };
 
         if (isMapStyleReady(map)) {

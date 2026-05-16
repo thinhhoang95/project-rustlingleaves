@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReplayMode } from "@/components/adsb-replay/types";
+import { useState } from "react";
+import type { ReplayFlight, ReplayMode } from "@/components/adsb-replay/types";
 import type { FlightAltitudeRange } from "@/components/adsb-replay/flight-altitude-filter";
 import type { FlightOperationVisibility } from "@/components/adsb-replay/flight-line-colors";
 import { FlightOperationFilterMenuButton } from "@/components/TimeScrubberPopover";
@@ -17,9 +18,11 @@ type ReplayControlsProps = {
   replayPlaying?: boolean;
   replaySpeed?: number;
   replayLoading?: boolean;
+  replayFlights?: ReplayFlight[];
   flightAltitudeRange?: FlightAltitudeRange;
   flightOperationVisibility?: FlightOperationVisibility;
   onReplayTimeChange?: (time: number) => void;
+  onRunwayOccupancySelect?: (flightId: string, time: number) => void;
   onToggleReplayPlaying?: () => void;
   onReplaySpeedChange?: (speed: number) => void;
   onFlightAltitudeRangeChange?: (altitudeRange: FlightAltitudeRange) => void;
@@ -32,16 +35,19 @@ export default function ReplayControls({
   replayMinTime = 0,
   replayMaxTime = 24 * 60 * 60 - 1,
   replayPlaying = false,
-  replaySpeed = 1,
+  replaySpeed = 20,
   replayLoading = false,
+  replayFlights = [],
   flightAltitudeRange,
   flightOperationVisibility,
   onReplayTimeChange,
+  onRunwayOccupancySelect,
   onToggleReplayPlaying,
   onReplaySpeedChange,
   onFlightAltitudeRangeChange,
   onFlightOperationVisibilityChange,
 }: ReplayControlsProps) {
+  const [runwayTimelineOpen, setRunwayTimelineOpen] = useState(false);
   const showReplayControls = onReplayTimeChange;
   const replayReady = !replayLoading && replayMaxTime > replayMinTime;
   const replayLabel = replayMode === "simulation" ? "Simulation" : "ADS-B";
@@ -64,7 +70,11 @@ export default function ReplayControls({
         replayMinTime={replayMinTime}
         replayMaxTime={replayMaxTime}
         replayLoading={replayLoading}
+        replayFlights={replayFlights}
+        runwayTimelineOpen={runwayTimelineOpen}
         onReplayTimeChange={onReplayTimeChange}
+        onToggleRunwayTimeline={() => setRunwayTimelineOpen((open) => !open)}
+        onRunwayOccupancySelect={onRunwayOccupancySelect}
       />
       <ReplaySpeedSelector
         replaySpeed={replaySpeed}

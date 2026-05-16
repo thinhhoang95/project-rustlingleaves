@@ -1,7 +1,7 @@
 "use client";
 
 import type { FlightAltitudeRange } from "@/components/adsb-replay/flight-altitude-filter";
-import type { ReplayMode } from "@/components/adsb-replay/types";
+import type { ReplayFlight, ReplayMode } from "@/components/adsb-replay/types";
 import type { FlightOperationVisibility } from "@/components/adsb-replay/flight-line-colors";
 import FixViewToggleButton from "@/components/view-options/FixViewToggleButton";
 import LinkViewToggleButton from "@/components/view-options/LinkViewToggleButton";
@@ -22,9 +22,11 @@ type ViewOptionsControlProps = {
   replayPlaying?: boolean;
   replaySpeed?: number;
   replayLoading?: boolean;
+  replayFlights?: ReplayFlight[];
   flightAltitudeRange?: FlightAltitudeRange;
   flightOperationVisibility?: FlightOperationVisibility;
   onReplayTimeChange?: (time: number) => void;
+  onRunwayOccupancySelect?: (flightId: string, time: number) => void;
   onToggleReplayPlaying?: () => void;
   onReplaySpeedChange?: (speed: number) => void;
   onFlightAltitudeRangeChange?: (altitudeRange: FlightAltitudeRange) => void;
@@ -43,11 +45,13 @@ export default function ViewOptionsControl({
   replayMinTime = 0,
   replayMaxTime = 24 * 60 * 60 - 1,
   replayPlaying = false,
-  replaySpeed = 1,
+  replaySpeed = 20,
   replayLoading = false,
+  replayFlights = [],
   flightAltitudeRange,
   flightOperationVisibility,
   onReplayTimeChange,
+  onRunwayOccupancySelect,
   onToggleReplayPlaying,
   onReplaySpeedChange,
   onFlightAltitudeRangeChange,
@@ -63,9 +67,11 @@ export default function ViewOptionsControl({
         replayPlaying={replayPlaying}
         replaySpeed={replaySpeed}
         replayLoading={replayLoading}
+        replayFlights={replayFlights}
         flightAltitudeRange={flightAltitudeRange}
         flightOperationVisibility={flightOperationVisibility}
         onReplayTimeChange={onReplayTimeChange}
+        onRunwayOccupancySelect={onRunwayOccupancySelect}
         onToggleReplayPlaying={onToggleReplayPlaying}
         onReplaySpeedChange={onReplaySpeedChange}
         onFlightAltitudeRangeChange={onFlightAltitudeRangeChange}

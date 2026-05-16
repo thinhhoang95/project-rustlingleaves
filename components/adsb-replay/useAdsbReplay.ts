@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { applyFlightOperationCatalog, parseFlightOperationCatalog } from "./flight-line-colors";
+import { applyFlightOperationCatalog, parseFlightOperationCatalog } from "./flight-operation-catalog";
 import { buildReplaySnapshot } from "./interpolate";
 import { buildReplayMetadata, parseFlightsJsonl } from "./parser";
 import type { ReplayFlight, ReplayMetadata, ReplaySnapshot } from "./types";
