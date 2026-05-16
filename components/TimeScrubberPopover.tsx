@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { createPortal } from "react-dom";
+import type { FlightOperationGroup, FlightOperationVisibility } from "@/components/adsb-replay/flight-line-colors";
 
 type TimeScrubberPopoverProps = {
   anchor: HTMLElement | null;
@@ -13,6 +14,8 @@ type TimeScrubberPopoverProps = {
   onCommit: (value: number) => void;
   glanceHorizonMinutes?: number;
   onGlanceHorizonChange?: (minutes: number) => void;
+  flightOperationVisibility?: FlightOperationVisibility;
+  onFlightOperationVisibilityChange?: (visibility: FlightOperationVisibility) => void;
 };
 
 type Position = {
@@ -28,6 +31,108 @@ function formatSecondsToHHMMSS(totalSeconds: number): string {
   return `${hh}:${mm}:${ss}`;
 }
 
+type FlightOperationFilterMenuButtonProps = {
+  visibility: FlightOperationVisibility;
+  onVisibilityChange: (visibility: FlightOperationVisibility) => void;
+};
+
+const FLIGHT_OPERATION_FILTER_OPTIONS: Array<{
+  key: FlightOperationGroup;
+  label: string;
+  color: string;
+}> = [
+  { key: "departure", label: "Departures", color: "#86efac" },
+  { key: "arrival", label: "Arrivals", color: "#38bdf8" },
+  { key: "unknown", label: "Others", color: "#fde047" },
+];
+
+export function FlightOperationFilterMenuButton({
+  visibility,
+  onVisibilityChange,
+}: FlightOperationFilterMenuButtonProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const hasHiddenOperationGroup = Object.values(visibility).some((visible) => !visible);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [menuOpen]);
+
+  const setOperationGroupVisible = (operationGroup: FlightOperationGroup, visible: boolean) => {
+    onVisibilityChange({
+      ...visibility,
+      [operationGroup]: visible,
+    });
+  };
+
+  return (
+    <div className="flight-operation-filter" ref={menuRef}>
+      <button
+        type="button"
+        className="view-opt-btn flight-operation-filter-button"
+        aria-label="Filter replay flight lines"
+        aria-expanded={menuOpen}
+        aria-haspopup="menu"
+        aria-pressed={hasHiddenOperationGroup}
+        title="Filter replay flight lines"
+        onClick={() => setMenuOpen((open) => !open)}
+      >
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path
+            d="M3.5 4.5h13L11.8 10v4.4l-3.6 1.5V10L3.5 4.5Z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+
+      {menuOpen ? (
+        <div className="flight-operation-filter-menu" role="menu" aria-label="Replay flight line filters">
+          {FLIGHT_OPERATION_FILTER_OPTIONS.map((option) => (
+            <label
+              className="flight-operation-filter-item"
+              role="menuitemcheckbox"
+              aria-checked={visibility[option.key]}
+              key={option.key}
+            >
+              <input
+                type="checkbox"
+                checked={visibility[option.key]}
+                onChange={(event) => setOperationGroupVisible(option.key, event.currentTarget.checked)}
+              />
+              <span className="flight-operation-filter-swatch" style={{ backgroundColor: option.color }} />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function TimeScrubberPopover({
   anchor,
   open,
@@ -38,13 +143,10 @@ export default function TimeScrubberPopover({
   onCommit,
   glanceHorizonMinutes,
   onGlanceHorizonChange,
+  flightOperationVisibility,
+  onFlightOperationVisibilityChange,
 }: TimeScrubberPopoverProps) {
-  const [mounted, setMounted] = useState(false);
   const [position, setPosition] = useState<Position | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!open || !anchor) {
@@ -69,7 +171,7 @@ export default function TimeScrubberPopover({
     };
   }, [anchor, open]);
 
-  if (!mounted || !open || !anchor || !position) {
+  if (typeof document === "undefined" || !open || !anchor || !position) {
     return null;
   }
 
@@ -108,6 +210,12 @@ export default function TimeScrubberPopover({
               Horizon {glanceHorizonMinutes}m
             </button>
           )}
+          {flightOperationVisibility && onFlightOperationVisibilityChange ? (
+            <FlightOperationFilterMenuButton
+              visibility={flightOperationVisibility}
+              onVisibilityChange={onFlightOperationVisibilityChange}
+            />
+          ) : null}
         </div>
       </div>
     </div>,

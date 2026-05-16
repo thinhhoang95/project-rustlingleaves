@@ -99,6 +99,7 @@ export type FlightLineFeature = {
     flightId: string;
     callsign: string;
     icao24: string;
+    lineColor: string;
   };
 };
 

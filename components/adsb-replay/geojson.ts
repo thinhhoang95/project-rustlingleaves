@@ -1,4 +1,5 @@
 import type { MapCoordinate } from "@/components/map-view-types";
+import { getFlightLineColor } from "./flight-line-colors";
 import { metersToFlightLevel } from "./interpolate";
 import type {
   AircraftFeatureCollection,
@@ -69,6 +70,7 @@ export function buildVisibleFlightLineCollection(
         flightId: state.flightId,
         callsign: state.callsign,
         icao24: state.icao24,
+        lineColor: getFlightLineColor(flight),
       },
     });
   }

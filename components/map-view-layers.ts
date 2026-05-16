@@ -2,11 +2,22 @@ import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import { buildAircraftCollection, buildVisibleFlightLineCollection } from "@/components/adsb-replay/geojson";
 import type {
   AircraftFeatureCollection,
+  AircraftState,
   FlightLineFeatureCollection,
   ReplayFlight,
   ReplayMode,
   ReplaySnapshot,
 } from "@/components/adsb-replay/types";
+import {
+  DEFAULT_FLIGHT_OPERATION_VISIBILITY,
+  isFlightVisibleByOperation,
+  type FlightOperationVisibility,
+} from "@/components/adsb-replay/flight-line-colors";
+import {
+  DEFAULT_FLIGHT_ALTITUDE_RANGE,
+  isAircraftInAltitudeRange,
+  type FlightAltitudeRange,
+} from "@/components/adsb-replay/flight-altitude-filter";
 import { buildRulerCollection } from "./map-view-data";
 import type {
   AirportPointCollection,
@@ -50,6 +61,26 @@ function emptyFlightLineCollection(): FlightLineFeatureCollection {
     type: "FeatureCollection",
     features: [],
   };
+}
+
+function filterAircraftByFlightOperation(
+  replayFlights: ReplayFlight[],
+  aircraft: AircraftState[],
+  flightAltitudeRange: FlightAltitudeRange,
+  flightOperationVisibility: FlightOperationVisibility,
+): AircraftState[] {
+  const flightsById = new Map(replayFlights.map((flight) => [flight.id, flight]));
+
+  return aircraft.filter((state) => {
+    if (!isAircraftInAltitudeRange(state, flightAltitudeRange)) {
+      return false;
+    }
+
+    const flight = flightsById.get(state.flightId);
+    return flight
+      ? isFlightVisibleByOperation(flight, flightOperationVisibility)
+      : flightOperationVisibility.unknown;
+  });
 }
 
 function setLayerVisibility(map: MapLibreMap, layerId: string, visible: boolean) {
@@ -441,7 +472,7 @@ export function addAdsbReplayLayers(map: MapLibreMap, visible: boolean) {
         visibility: visible ? "visible" : "none",
       },
       paint: {
-        "line-color": "#38bdf8",
+        "line-color": ["coalesce", ["get", "lineColor"], "#fde047"],
         "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1, 8, 1.8, 12, 2.6, 16, 3.4],
         "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.34, 8, 0.56, 12, 0.74],
       },
@@ -505,18 +536,29 @@ export function updateAdsbReplayLayers(
   replayFlights: ReplayFlight[],
   replaySnapshot: ReplaySnapshot,
   selectedReplayFlightId: string | null = null,
+  flightAltitudeRange: FlightAltitudeRange = DEFAULT_FLIGHT_ALTITUDE_RANGE,
+  flightOperationVisibility: FlightOperationVisibility = DEFAULT_FLIGHT_OPERATION_VISIBILITY,
 ) {
   const visible = replayMode === "adsb" || replayMode === "simulation";
   addAdsbReplayLayers(map, visible);
   placeLinkLayersBelowReplayLayers(map);
 
+  const visibleAircraft = visible
+    ? filterAircraftByFlightOperation(
+        replayFlights,
+        replaySnapshot.aircraft,
+        flightAltitudeRange,
+        flightOperationVisibility,
+      )
+    : [];
+
   const aircraftSource = map.getSource(AIRCRAFT_SOURCE_ID) as GeoJSONSource | undefined;
-  aircraftSource?.setData(visible ? buildAircraftCollection(replaySnapshot.aircraft) : emptyAircraftCollection());
+  aircraftSource?.setData(visible ? buildAircraftCollection(visibleAircraft) : emptyAircraftCollection());
 
   const flightLineSource = map.getSource(FLIGHT_LINE_SOURCE_ID) as GeoJSONSource | undefined;
   flightLineSource?.setData(
     visible
-      ? buildVisibleFlightLineCollection(replayFlights, replaySnapshot.aircraft, selectedReplayFlightId)
+      ? buildVisibleFlightLineCollection(replayFlights, visibleAircraft, selectedReplayFlightId)
       : emptyFlightLineCollection(),
   );
 

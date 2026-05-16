@@ -11,6 +11,8 @@ import SimulationFeasibilityPanel from "@/components/SimulationFeasibilityPanel"
 import SimulationFlightDetailsPanel from "@/components/SimulationFlightDetailsPanel";
 import type { MapCoordinate, MapSearchItem, MapSelectionTarget } from "@/components/map-view-types";
 import ViewOptionsControl from "@/components/ViewOptionsControl";
+import { DEFAULT_FLIGHT_ALTITUDE_RANGE } from "@/components/adsb-replay/flight-altitude-filter";
+import { DEFAULT_FLIGHT_OPERATION_VISIBILITY } from "@/components/adsb-replay/flight-line-colors";
 import { useAdsbReplay } from "@/components/adsb-replay/useAdsbReplay";
 import { useSimulationReplay } from "@/components/adsb-replay/useSimulationReplay";
 import type { ReplayMode } from "@/components/adsb-replay/types";
@@ -33,6 +35,8 @@ export default function Page() {
   const [showFeasibilityPanel, setShowFeasibilityPanel] = useState(false);
   const [showConflictsPanel, setShowConflictsPanel] = useState(false);
   const [simulationEvalRefreshToken, setSimulationEvalRefreshToken] = useState(0);
+  const [flightAltitudeRange, setFlightAltitudeRange] = useState(DEFAULT_FLIGHT_ALTITUDE_RANGE);
+  const [flightOperationVisibility, setFlightOperationVisibility] = useState(DEFAULT_FLIGHT_OPERATION_VISIBILITY);
   const adsbReplay = useAdsbReplay(adsbReplayTime);
   const simulationReplay = useSimulationReplay(simulationReplayTime);
   const activeReplay = replayMode === "simulation" ? simulationReplay : adsbReplay;
@@ -302,6 +306,8 @@ export default function Page() {
         replayFlights={activeReplay.flights}
         replaySnapshot={activeReplay.snapshot}
         selectedReplayFlightId={replayMode === "simulation" ? selectedSimulationFlightId : selectedAdsbFlightId}
+        flightAltitudeRange={flightAltitudeRange}
+        flightOperationVisibility={flightOperationVisibility}
       />
 
       <div className="parent-pane page-pane page-pane-left flight-details-pane" aria-label="Left panels">
@@ -363,12 +369,16 @@ export default function Page() {
           replayPlaying={replayPlaying}
           replaySpeed={replaySpeed}
           replayLoading={activeReplay.loading}
+          flightAltitudeRange={flightAltitudeRange}
+          flightOperationVisibility={flightOperationVisibility}
           onReplayTimeChange={(time) => {
             setReplayPlaying(false);
             setActiveReplayTime(time);
           }}
           onToggleReplayPlaying={() => setReplayPlaying((previous) => !previous)}
           onReplaySpeedChange={setReplaySpeed}
+          onFlightAltitudeRangeChange={setFlightAltitudeRange}
+          onFlightOperationVisibilityChange={setFlightOperationVisibility}
         />
       </div>
     </main>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { applyFlightOperationCatalog, parseFlightOperationCatalog } from "./flight-line-colors";
 import { buildReplaySnapshot } from "./interpolate";
 import { buildReplayMetadata, parseFlightsJsonl } from "./parser";
 import type { ReplayFlight, ReplayMetadata, ReplaySnapshot } from "./types";
@@ -27,12 +28,20 @@ export function useAdsbReplay(time: number): AdsbReplayState {
       setError(null);
 
       try {
-        const response = await fetch("/data/flights.jsonl", { cache: "force-cache" });
-        if (!response.ok) {
-          throw new Error(`Failed to load ADS-B flights (${response.status})`);
+        const [flightsResponse, catalogText] = await Promise.all([
+          fetch("/data/flights.jsonl", { cache: "force-cache" }),
+          fetch("/data/2026-04-01_landings_and_departures.csv", { cache: "force-cache" })
+            .then((response) => (response.ok ? response.text() : ""))
+            .catch(() => ""),
+        ]);
+        if (!flightsResponse.ok) {
+          throw new Error(`Failed to load ADS-B flights (${flightsResponse.status})`);
         }
 
-        const parsedFlights = parseFlightsJsonl(await response.text());
+        const parsedAdsbFlights = parseFlightsJsonl(await flightsResponse.text());
+        const parsedFlights = catalogText
+          ? applyFlightOperationCatalog(parsedAdsbFlights, parseFlightOperationCatalog(catalogText))
+          : parsedAdsbFlights;
         const parsedMetadata = buildReplayMetadata(parsedFlights);
 
         if (!parsedMetadata) {
