@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReplayMode } from "@/components/adsb-replay/types";
+import { REPLAY_CONTROL_SHORTCUTS } from "@/components/view-options/replay-control-shortcuts";
 
 type ReplayPlayPauseButtonProps = {
   replayMode: ReplayMode;
@@ -16,14 +17,18 @@ export default function ReplayPlayPauseButton({
   onToggle,
 }: ReplayPlayPauseButtonProps) {
   const replayLabel = replayMode === "simulation" ? "simulation" : "ADS-B";
+  const label = replayPlaying ? `Pause ${replayLabel} replay` : `Play ${replayLabel} replay`;
+  const shortcut = REPLAY_CONTROL_SHORTCUTS.playPause;
 
   return (
     <button
       type="button"
       className="view-opt-btn replay-play-btn"
       aria-pressed={replayPlaying}
-      aria-label={replayPlaying ? `Pause ${replayLabel} replay` : `Play ${replayLabel} replay`}
+      aria-label={label}
+      aria-keyshortcuts={shortcut.ariaKeyShortcuts}
       disabled={disabled}
+      title={`${label} (${shortcut.label})`}
       onClick={onToggle}
     >
       {replayPlaying ? (

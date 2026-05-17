@@ -20,6 +20,10 @@ const nextConfig = {
         source: "/tools/evals/conflicts",
         destination: `${scenarioApiBaseUrl}/tools/evals/conflicts`,
       },
+      {
+        source: "/tools/evals/runway-overlaps",
+        destination: `${scenarioApiBaseUrl}/tools/evals/runway-overlaps`,
+      },
     ];
   },
 };

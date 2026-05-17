@@ -145,6 +145,7 @@ export default function Page() {
   const [conflictViewEnabled, setConflictViewEnabled] = useState(false);
   const [simulationConflicts, setSimulationConflicts] = useState<SimulationConflict[]>([]);
   const [simulationEvalRefreshToken, setSimulationEvalRefreshToken] = useState(0);
+  const [runwayUseTimelineRequestToken, setRunwayUseTimelineRequestToken] = useState(0);
   const { replaySpeed, showLinks, showWaypoints, flightAltitudeRange, flightOperationVisibility } = viewSettings;
   const adsbReplay = useAdsbReplay(adsbReplayTime);
   const simulationReplay = useSimulationReplay(simulationReplayTime);
@@ -448,6 +449,7 @@ export default function Page() {
         }}
         onOpenFeasibilityPanel={openFeasibilityPanel}
         onOpenConflictsPanel={openConflictsPanel}
+        onOpenRunwayUseTimeline={() => setRunwayUseTimelineRequestToken((token) => token + 1)}
         simulationCacheLoading={simulationReplay.loading || simulationReplay.invalidating}
         onInvalidateSimulationCache={() => {
           setReplayMode("simulation");
@@ -578,6 +580,7 @@ export default function Page() {
           replaySpeed={replaySpeed}
           replayLoading={activeReplay.loading}
           replayFlights={activeReplay.flights}
+          runwayUseTimelineRequestToken={runwayUseTimelineRequestToken}
           flightAltitudeRange={flightAltitudeRange}
           flightOperationVisibility={flightOperationVisibility}
           onReplayTimeChange={(time) => {

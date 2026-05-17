@@ -23,6 +23,7 @@ type HeaderProps = {
   onReplayModeChange: (mode: ReplayMode) => void;
   onOpenFeasibilityPanel: () => void;
   onOpenConflictsPanel: () => void;
+  onOpenRunwayUseTimeline: () => void;
   simulationCacheLoading: boolean;
   onInvalidateSimulationCache: () => void;
 };
@@ -36,6 +37,7 @@ export default function Header({
   onReplayModeChange,
   onOpenFeasibilityPanel,
   onOpenConflictsPanel,
+  onOpenRunwayUseTimeline,
   simulationCacheLoading,
   onInvalidateSimulationCache,
 }: HeaderProps) {
@@ -104,6 +106,7 @@ export default function Header({
           <EvalToolsMenu
             onOpenFeasibility={onOpenFeasibilityPanel}
             onOpenConflicts={onOpenConflictsPanel}
+            onOpenRunwayUse={onOpenRunwayUseTimeline}
           />
         ) : null}
 

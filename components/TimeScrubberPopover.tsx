@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { createPortal } from "react-dom";
 import type { FlightOperationGroup, FlightOperationVisibility } from "@/components/adsb-replay/flight-line-colors";
+import { REPLAY_CONTROL_SHORTCUTS } from "@/components/view-options/replay-control-shortcuts";
 
 type TimeScrubberPopoverProps = {
   anchor: HTMLElement | null;
@@ -33,6 +34,8 @@ function formatSecondsToHHMMSS(totalSeconds: number): string {
 
 type FlightOperationFilterMenuButtonProps = {
   visibility: FlightOperationVisibility;
+  menuOpen?: boolean;
+  onMenuOpenChange?: (open: boolean) => void;
   onVisibilityChange: (visibility: FlightOperationVisibility) => void;
 };
 
@@ -48,11 +51,24 @@ const FLIGHT_OPERATION_FILTER_OPTIONS: Array<{
 
 export function FlightOperationFilterMenuButton({
   visibility,
+  menuOpen: controlledMenuOpen,
+  onMenuOpenChange,
   onVisibilityChange,
 }: FlightOperationFilterMenuButtonProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [uncontrolledMenuOpen, setUncontrolledMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuOpen = controlledMenuOpen ?? uncontrolledMenuOpen;
+  const isMenuOpenControlled = typeof controlledMenuOpen === "boolean";
   const hasHiddenOperationGroup = Object.values(visibility).some((visible) => !visible);
+  const shortcut = REPLAY_CONTROL_SHORTCUTS.toggleFlightOperationFilter;
+
+  const setMenuOpen = (open: boolean) => {
+    if (!isMenuOpenControlled) {
+      setUncontrolledMenuOpen(open);
+    }
+
+    onMenuOpenChange?.(open);
+  };
 
   useEffect(() => {
     if (!menuOpen) {
@@ -61,12 +77,20 @@ export function FlightOperationFilterMenuButton({
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!menuRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false);
+        if (!isMenuOpenControlled) {
+          setUncontrolledMenuOpen(false);
+        }
+
+        onMenuOpenChange?.(false);
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setMenuOpen(false);
+        if (!isMenuOpenControlled) {
+          setUncontrolledMenuOpen(false);
+        }
+
+        onMenuOpenChange?.(false);
       }
     };
 
@@ -76,7 +100,7 @@ export function FlightOperationFilterMenuButton({
       window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [menuOpen]);
+  }, [isMenuOpenControlled, menuOpen, onMenuOpenChange]);
 
   const setOperationGroupVisible = (operationGroup: FlightOperationGroup, visible: boolean) => {
     onVisibilityChange({
@@ -93,9 +117,10 @@ export function FlightOperationFilterMenuButton({
         aria-label="Filter replay flight lines"
         aria-expanded={menuOpen}
         aria-haspopup="menu"
+        aria-keyshortcuts={shortcut.ariaKeyShortcuts}
         aria-pressed={hasHiddenOperationGroup}
-        title="Filter replay flight lines"
-        onClick={() => setMenuOpen((open) => !open)}
+        title={`Filter replay flight lines (${shortcut.label})`}
+        onClick={() => setMenuOpen(!menuOpen)}
       >
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path

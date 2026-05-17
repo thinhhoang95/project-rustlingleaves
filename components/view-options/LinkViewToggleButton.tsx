@@ -1,17 +1,23 @@
 "use client";
 
+import { VIEW_TOGGLE_SHORTCUTS } from "@/components/view-options/view-toggle-shortcuts";
+
 type LinkViewToggleButtonProps = {
   showLinks: boolean;
   onToggleLinks: () => void;
 };
 
 export default function LinkViewToggleButton({ showLinks, onToggleLinks }: LinkViewToggleButtonProps) {
+  const shortcut = VIEW_TOGGLE_SHORTCUTS.proceduralLinks;
+
   return (
     <button
       type="button"
       className="view-opt-btn"
       aria-pressed={showLinks}
-      aria-label="Toggle links"
+      aria-label="Toggle procedural links"
+      aria-keyshortcuts={shortcut.ariaKeyShortcuts}
+      title={`Toggle procedural links (${shortcut.label})`}
       onClick={onToggleLinks}
     >
       <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

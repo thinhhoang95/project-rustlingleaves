@@ -10,9 +10,12 @@ import {
   clampFlightLevel,
   FLIGHT_ALTITUDE_STEP_FL,
 } from "@/components/adsb-replay/flight-altitude-filter";
+import { REPLAY_CONTROL_SHORTCUTS } from "@/components/view-options/replay-control-shortcuts";
 
 type ReplayAltitudeRangeFilterProps = {
   altitudeRange: FlightAltitudeRange;
+  menuOpen?: boolean;
+  onMenuOpenChange?: (open: boolean) => void;
   onAltitudeRangeChange: (altitudeRange: FlightAltitudeRange) => void;
 };
 
@@ -27,19 +30,32 @@ function getRangePercent(flightLevel: number): number {
 
 export default function ReplayAltitudeRangeFilter({
   altitudeRange,
+  menuOpen: controlledMenuOpen,
+  onMenuOpenChange,
   onAltitudeRangeChange,
 }: ReplayAltitudeRangeFilterProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [uncontrolledMenuOpen, setUncontrolledMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const lowerId = useId();
   const upperId = useId();
+  const menuOpen = controlledMenuOpen ?? uncontrolledMenuOpen;
+  const isMenuOpenControlled = typeof controlledMenuOpen === "boolean";
   const lowerFlightLevel = clampFlightLevel(Math.min(altitudeRange.minFlightLevel, altitudeRange.maxFlightLevel));
   const upperFlightLevel = clampFlightLevel(Math.max(altitudeRange.minFlightLevel, altitudeRange.maxFlightLevel));
   const lowerPercent = getRangePercent(lowerFlightLevel);
   const upperPercent = getRangePercent(upperFlightLevel);
+  const shortcut = REPLAY_CONTROL_SHORTCUTS.toggleAltitudeFilter;
   const hasAltitudeFilter =
     lowerFlightLevel !== DEFAULT_FLIGHT_ALTITUDE_RANGE.minFlightLevel ||
     upperFlightLevel !== DEFAULT_FLIGHT_ALTITUDE_RANGE.maxFlightLevel;
+
+  const setMenuOpen = (open: boolean) => {
+    if (!isMenuOpenControlled) {
+      setUncontrolledMenuOpen(open);
+    }
+
+    onMenuOpenChange?.(open);
+  };
 
   useEffect(() => {
     if (!menuOpen) {
@@ -48,12 +64,20 @@ export default function ReplayAltitudeRangeFilter({
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!menuRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false);
+        if (!isMenuOpenControlled) {
+          setUncontrolledMenuOpen(false);
+        }
+
+        onMenuOpenChange?.(false);
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setMenuOpen(false);
+        if (!isMenuOpenControlled) {
+          setUncontrolledMenuOpen(false);
+        }
+
+        onMenuOpenChange?.(false);
       }
     };
 
@@ -63,7 +87,7 @@ export default function ReplayAltitudeRangeFilter({
       window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [menuOpen]);
+  }, [isMenuOpenControlled, menuOpen, onMenuOpenChange]);
 
   const setLowerFlightLevel = (nextFlightLevel: number) => {
     onAltitudeRangeChange({
@@ -87,9 +111,10 @@ export default function ReplayAltitudeRangeFilter({
         aria-label="Filter replay altitude range"
         aria-expanded={menuOpen}
         aria-haspopup="dialog"
+        aria-keyshortcuts={shortcut.ariaKeyShortcuts}
         aria-pressed={hasAltitudeFilter}
-        title="Filter replay altitude range"
-        onClick={() => setMenuOpen((open) => !open)}
+        title={`Filter replay altitude range (${shortcut.label})`}
+        onClick={() => setMenuOpen(!menuOpen)}
       >
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path

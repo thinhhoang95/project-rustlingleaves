@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "clean:sidecars": "find . -path ./node_modules -prune -o -name '._*' -type f -delete",
+    "predev": "npm run clean:sidecars && rm -rf .next",
     "dev": "node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1",
     "build": "node ./node_modules/next/dist/bin/next build",
     "start": "node ./node_modules/next/dist/bin/next start",

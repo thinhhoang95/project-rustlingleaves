@@ -5,9 +5,10 @@ import { useEffect, useRef, useState } from "react";
 type EvalToolsMenuProps = {
   onOpenFeasibility: () => void;
   onOpenConflicts: () => void;
+  onOpenRunwayUse: () => void;
 };
 
-export default function EvalToolsMenu({ onOpenFeasibility, onOpenConflicts }: EvalToolsMenuProps) {
+export default function EvalToolsMenu({ onOpenFeasibility, onOpenConflicts, onOpenRunwayUse }: EvalToolsMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -63,6 +64,17 @@ export default function EvalToolsMenu({ onOpenFeasibility, onOpenConflicts }: Ev
             }}
           >
             Conflicts
+          </button>
+          <button
+            type="button"
+            className="mode-switch-menu-item"
+            role="menuitem"
+            onClick={() => {
+              setMenuOpen(false);
+              onOpenRunwayUse();
+            }}
+          >
+            Runway Use
           </button>
         </div>
       ) : null}

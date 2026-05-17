@@ -9,6 +9,7 @@ import ReplayAltitudeRangeFilter from "@/components/view-options/ReplayAltitudeR
 import ReplayPlayPauseButton from "@/components/view-options/ReplayPlayPauseButton";
 import ReplaySpeedSelector from "@/components/view-options/ReplaySpeedSelector";
 import ReplayTimeScrubber from "@/components/view-options/ReplayTimeScrubber";
+import { useReplayControlShortcuts } from "@/components/view-options/replay-control-shortcuts";
 
 type ReplayControlsProps = {
   replayMode?: ReplayMode;
@@ -19,6 +20,7 @@ type ReplayControlsProps = {
   replaySpeed?: number;
   replayLoading?: boolean;
   replayFlights?: ReplayFlight[];
+  runwayUseTimelineRequestToken?: number;
   flightAltitudeRange?: FlightAltitudeRange;
   flightOperationVisibility?: FlightOperationVisibility;
   onReplayTimeChange?: (time: number) => void;
@@ -38,6 +40,7 @@ export default function ReplayControls({
   replaySpeed = 20,
   replayLoading = false,
   replayFlights = [],
+  runwayUseTimelineRequestToken,
   flightAltitudeRange,
   flightOperationVisibility,
   onReplayTimeChange,
@@ -47,10 +50,47 @@ export default function ReplayControls({
   onFlightAltitudeRangeChange,
   onFlightOperationVisibilityChange,
 }: ReplayControlsProps) {
-  const [runwayTimelineOpen, setRunwayTimelineOpen] = useState(false);
-  const showReplayControls = onReplayTimeChange;
+  const [manualRunwayTimelineOpen, setManualRunwayTimelineOpen] = useState(false);
+  const [dismissedRunwayUseRequestToken, setDismissedRunwayUseRequestToken] = useState<number | undefined>(undefined);
+  const [flightOperationFilterOpen, setFlightOperationFilterOpen] = useState(false);
+  const [altitudeFilterOpen, setAltitudeFilterOpen] = useState(false);
+  const showReplayControls = Boolean(onReplayTimeChange);
   const replayReady = !replayLoading && replayMaxTime > replayMinTime;
   const replayLabel = replayMode === "simulation" ? "Simulation" : "ADS-B";
+  const showFlightOperationFilter = Boolean(flightOperationVisibility && onFlightOperationVisibilityChange);
+  const showAltitudeFilter = Boolean(flightAltitudeRange && onFlightAltitudeRangeChange);
+  const activeRunwayUseRequest =
+    replayMode === "simulation" &&
+    runwayUseTimelineRequestToken !== undefined &&
+    runwayUseTimelineRequestToken > 0 &&
+    runwayUseTimelineRequestToken !== dismissedRunwayUseRequestToken;
+  const runwayTimelineOpen = manualRunwayTimelineOpen || activeRunwayUseRequest;
+  const runwayOverlapRequestToken = activeRunwayUseRequest ? runwayUseTimelineRequestToken : undefined;
+  const toggleRunwayTimeline = () => {
+    if (runwayTimelineOpen) {
+      setDismissedRunwayUseRequestToken(runwayUseTimelineRequestToken);
+      setManualRunwayTimelineOpen(false);
+      return;
+    }
+
+    setManualRunwayTimelineOpen(true);
+  };
+
+  useReplayControlShortcuts({
+    replayReady,
+    replayTime,
+    replayMinTime,
+    replayMaxTime,
+    onReplayTimeChange: showReplayControls ? onReplayTimeChange : undefined,
+    onToggleReplayPlaying: showReplayControls ? onToggleReplayPlaying : undefined,
+    onReplaySpeedChange: showReplayControls ? onReplaySpeedChange : undefined,
+    onToggleRunwayTimeline: showReplayControls && replayReady ? toggleRunwayTimeline : undefined,
+    onToggleFlightOperationFilter: showReplayControls && showFlightOperationFilter
+      ? () => setFlightOperationFilterOpen((open) => !open)
+      : undefined,
+    onToggleAltitudeFilter:
+      showReplayControls && showAltitudeFilter ? () => setAltitudeFilterOpen((open) => !open) : undefined,
+  });
 
   if (!showReplayControls) {
     return null;
@@ -72,8 +112,9 @@ export default function ReplayControls({
         replayLoading={replayLoading}
         replayFlights={replayFlights}
         runwayTimelineOpen={runwayTimelineOpen}
+        runwayUseTimelineRequestToken={runwayOverlapRequestToken}
         onReplayTimeChange={onReplayTimeChange}
-        onToggleRunwayTimeline={() => setRunwayTimelineOpen((open) => !open)}
+        onToggleRunwayTimeline={toggleRunwayTimeline}
         onRunwayOccupancySelect={onRunwayOccupancySelect}
       />
       <ReplaySpeedSelector
@@ -84,12 +125,16 @@ export default function ReplayControls({
       {flightOperationVisibility && onFlightOperationVisibilityChange ? (
         <FlightOperationFilterMenuButton
           visibility={flightOperationVisibility}
+          menuOpen={flightOperationFilterOpen}
+          onMenuOpenChange={setFlightOperationFilterOpen}
           onVisibilityChange={onFlightOperationVisibilityChange}
         />
       ) : null}
       {flightAltitudeRange && onFlightAltitudeRangeChange ? (
         <ReplayAltitudeRangeFilter
           altitudeRange={flightAltitudeRange}
+          menuOpen={altitudeFilterOpen}
+          onMenuOpenChange={setAltitudeFilterOpen}
           onAltitudeRangeChange={onFlightAltitudeRangeChange}
         />
       ) : null}

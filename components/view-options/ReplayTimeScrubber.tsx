@@ -4,6 +4,7 @@ import { ChartGantt } from "lucide-react";
 import type { ReplayFlight, ReplayMode } from "@/components/adsb-replay/types";
 import ShimmeringText from "@/components/ShimmeringText";
 import RunwayUseTimeline from "@/components/view-options/RunwayUseTimeline";
+import { REPLAY_CONTROL_SHORTCUTS } from "@/components/view-options/replay-control-shortcuts";
 
 type ReplayTimeScrubberProps = {
   replayMode: ReplayMode;
@@ -13,6 +14,7 @@ type ReplayTimeScrubberProps = {
   replayLoading: boolean;
   replayFlights?: ReplayFlight[];
   runwayTimelineOpen?: boolean;
+  runwayUseTimelineRequestToken?: number;
   onReplayTimeChange?: (time: number) => void;
   onToggleRunwayTimeline?: () => void;
   onRunwayOccupancySelect?: (flightId: string, time: number) => void;
@@ -37,6 +39,7 @@ export default function ReplayTimeScrubber({
   replayLoading,
   replayFlights = [],
   runwayTimelineOpen = false,
+  runwayUseTimelineRequestToken,
   onReplayTimeChange,
   onToggleRunwayTimeline,
   onRunwayOccupancySelect,
@@ -45,16 +48,19 @@ export default function ReplayTimeScrubber({
   const clampedReplayTime = Math.floor(Math.max(replayMinTime, Math.min(replayMaxTime, replayTime)));
   const replayLabel = replayMode === "simulation" ? "simulation" : "ADS-B";
   const showRunwayTimelineToggle = Boolean(onToggleRunwayTimeline);
+  const timelineShortcut = REPLAY_CONTROL_SHORTCUTS.toggleRunwayTimeline;
 
   return (
     <div className="replay-scrubber-shell">
       {runwayTimelineOpen ? (
         <RunwayUseTimeline
+          replayMode={replayMode}
           flights={replayFlights}
           replayTime={replayTime}
           replayMinTime={replayMinTime}
           replayMaxTime={replayMaxTime}
           replayLoading={replayLoading}
+          runwayUseTimelineRequestToken={runwayUseTimelineRequestToken}
           onReplayTimeChange={onReplayTimeChange}
           onOccupancySelect={onRunwayOccupancySelect}
         />
@@ -65,8 +71,9 @@ export default function ReplayTimeScrubber({
             type="button"
             className="view-opt-btn replay-timeline-toggle"
             aria-label="Toggle runway use timeline"
+            aria-keyshortcuts={timelineShortcut.ariaKeyShortcuts}
             aria-pressed={runwayTimelineOpen}
-            title="Runway use timeline"
+            title={`Runway use timeline (${timelineShortcut.label})`}
             disabled={!replayReady}
             onClick={onToggleRunwayTimeline}
           >

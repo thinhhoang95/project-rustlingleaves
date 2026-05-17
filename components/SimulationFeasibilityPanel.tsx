@@ -360,7 +360,7 @@ export default function SimulationFeasibilityPanel({
                       {issue.flightNumber}
                     </button>
                   </td>
-                  <td>{formatNauticalMiles(issue.missingDistanceNmi)}</td>
+                  <td><span className="feasibility-distance-badge">{formatNauticalMiles(issue.missingDistanceNmi)}</span></td>
                 </tr>
               ))}
             </tbody>

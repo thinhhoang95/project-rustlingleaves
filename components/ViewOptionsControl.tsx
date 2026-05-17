@@ -7,6 +7,7 @@ import FixViewToggleButton from "@/components/view-options/FixViewToggleButton";
 import LinkViewToggleButton from "@/components/view-options/LinkViewToggleButton";
 import ReplayControls from "@/components/view-options/ReplayControls";
 import RulerToggleButton from "@/components/view-options/RulerToggleButton";
+import { useViewToggleShortcuts } from "@/components/view-options/view-toggle-shortcuts";
 
 type ViewOptionsControlProps = {
   showLinks: boolean;
@@ -23,6 +24,7 @@ type ViewOptionsControlProps = {
   replaySpeed?: number;
   replayLoading?: boolean;
   replayFlights?: ReplayFlight[];
+  runwayUseTimelineRequestToken?: number;
   flightAltitudeRange?: FlightAltitudeRange;
   flightOperationVisibility?: FlightOperationVisibility;
   onReplayTimeChange?: (time: number) => void;
@@ -48,6 +50,7 @@ export default function ViewOptionsControl({
   replaySpeed = 20,
   replayLoading = false,
   replayFlights = [],
+  runwayUseTimelineRequestToken,
   flightAltitudeRange,
   flightOperationVisibility,
   onReplayTimeChange,
@@ -57,6 +60,11 @@ export default function ViewOptionsControl({
   onFlightAltitudeRangeChange,
   onFlightOperationVisibilityChange,
 }: ViewOptionsControlProps) {
+  useViewToggleShortcuts({
+    onToggleLinks,
+    onToggleWaypoints,
+  });
+
   return (
     <section className="view-options" aria-label="View options">
       <ReplayControls
@@ -68,6 +76,7 @@ export default function ViewOptionsControl({
         replaySpeed={replaySpeed}
         replayLoading={replayLoading}
         replayFlights={replayFlights}
+        runwayUseTimelineRequestToken={runwayUseTimelineRequestToken}
         flightAltitudeRange={flightAltitudeRange}
         flightOperationVisibility={flightOperationVisibility}
         onReplayTimeChange={onReplayTimeChange}

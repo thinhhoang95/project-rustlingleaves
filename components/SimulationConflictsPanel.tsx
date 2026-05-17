@@ -538,8 +538,7 @@ export default function SimulationConflictsPanel({
                       </span>
                     </td>
                     <td>
-                      <strong>{formatNauticalMiles(conflict.lateralDistanceNmi)}</strong>
-                      <span>nm</span>
+                      <span className="conflict-lateral-badge">{formatNauticalMiles(conflict.lateralDistanceNmi)} nm</span>
                     </td>
                     <td>
                       <span className={`conflict-severity conflict-severity-${severityLabel.toLowerCase()}`}>

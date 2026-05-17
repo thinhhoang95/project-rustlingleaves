@@ -1,12 +1,12 @@
 "use client";
 
+import { REPLAY_SPEEDS, REPLAY_SPEED_SHORTCUTS } from "@/components/view-options/replay-control-shortcuts";
+
 type ReplaySpeedSelectorProps = {
   replaySpeed: number;
   disabled: boolean;
   onReplaySpeedChange?: (speed: number) => void;
 };
-
-const REPLAY_SPEEDS = [5, 10, 20];
 
 export default function ReplaySpeedSelector({
   replaySpeed,
@@ -21,7 +21,9 @@ export default function ReplaySpeedSelector({
           type="button"
           className="replay-speed-btn"
           aria-pressed={replaySpeed === speed}
+          aria-keyshortcuts={REPLAY_SPEED_SHORTCUTS[speed].ariaKeyShortcuts}
           disabled={disabled}
+          title={`Replay speed ${speed}x (${REPLAY_SPEED_SHORTCUTS[speed].label})`}
           onClick={() => onReplaySpeedChange?.(speed)}
         >
           {speed}x
